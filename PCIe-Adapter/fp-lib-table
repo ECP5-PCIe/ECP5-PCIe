@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name PCIe-Adapter)(type KiCad)(uri ${KIPRJMOD}/PCIe-Adapter.pretty)(options "")(descr ""))
+)
