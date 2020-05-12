@@ -1,3 +1,4 @@
 (sym_lib_table
   (lib (name Si5325)(type Legacy)(uri ${KIPRJMOD}/Si5325.lib)(options "")(descr ""))
+  (lib (name PCIe)(type Legacy)(uri ${KIPRJMOD}/PCIe.lib)(options "")(descr ""))
 )
