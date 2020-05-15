@@ -1,0 +1,3 @@
+[submodule "Gateware/utils"]
+	path = Gateware/utils
+	url = https://github.com/ECP5-PCIe/ECP5-Utils.git

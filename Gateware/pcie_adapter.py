@@ -62,12 +62,24 @@ class PCIeAdapterPlatform(LatticeECP5Platform):
             rx="M20", tx="M19", attrs=Attrs(IOSTANDARD="LVCMOS33")
         ),
 
-        Resource("avr_reset", 0,
+        Resource("avr_rst", 0,
             Pins("L20", dir="o"),
         ),
 
         Resource("avr_clk", 0,
             Pins("L16", dir="o"),
+        ),
+
+        Resource("debug_sma", 0,
+            Pins("G20", dir="o"),
+        ),
+
+        Resource("from_pll", 0,
+            DiffPairs("J19", "K19", dir="i"),
+        ),
+
+        Resource("to_pll", 0,
+            DiffPairs("J20", "K20", dir="o"),
         ),
 
         UARTResource("usb_uart", 0,
