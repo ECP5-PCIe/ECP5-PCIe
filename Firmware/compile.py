@@ -3,6 +3,7 @@
 import sys
 import os
 from subprocess import call
+from shutil import copyfile, rmtree
 
 path = ""
 program = False
@@ -24,13 +25,17 @@ assert path != ""
 if program:
     assert os.path.exists(port)
 
+assert os.path.exists(path)
 
-
-assert os.path.exists(sys.argv[1])
 if not os.path.exists("build/arduino"):
     os.makedirs("build/arduino")
 if not os.path.exists("build/arduino-cache"):
     os.makedirs("build/arduino-cache")
+if not os.path.exists("build/tmp"):
+    os.makedirs("build/tmp")
+
+copyfile(path, "build/tmp/sketch.cpp")
+
 args = [
     "/usr/share/arduino/arduino-builder",
     "-compile",
@@ -48,13 +53,13 @@ args = [
     "-build-cache","build/arduino-cache",
     "-prefs=build.warn_data_percentage=75",
     "-verbose",
-    sys.argv[1]
+    "build/tmp/sketch.cpp"
 ]
 
 call(args)
 
 if(program):
-    _, hexpath = os.path.split(path)
+    #_, hexpath = os.path.split(path)
     pgmargs = [
         "avrdude",
         "-v",
@@ -64,6 +69,11 @@ if(program):
         "-D",
         "-F",
         "-P" + port,
-        "-Uflash:w:build/arduino/" + hexpath + ".hex:i"
+        "-Uflash:w:build/arduino/sketch.cpp.hex:i"
+        #"-Uflash:w:build/arduino/" + hexpath + ".hex:i"
     ]
     call(pgmargs)
+
+rmtree("build/arduino")
+rmtree("build/arduino-cache")
+rmtree("build/tmp")

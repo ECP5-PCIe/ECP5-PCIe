@@ -5,7 +5,7 @@ from utils.parts import PLL1Ch
 
 class Test(Elaboratable):
     def __init__(self, debugout = True):
-        self.debugout = True
+        self.debugout = debugout
 
     def elaborate(self, platform):
         m = Module()

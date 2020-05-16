@@ -58,7 +58,7 @@ class PCIeAdapterPlatform(LatticeECP5Platform):
         *SwitchResources(pins={4: "E15", 5: "D16", 6: "B16", 7: "C16", 8: "A16"}, invert=True,
                          attrs=Attrs(IO_TYPE=bank1_iostandard)),
 
-        UARTResource("avr_uart", 0,
+        UARTResource("avr_uart", 0, # Bank 3
             rx="M20", tx="M19", attrs=Attrs(IOSTANDARD="LVCMOS33")
         ),
 
@@ -74,15 +74,17 @@ class PCIeAdapterPlatform(LatticeECP5Platform):
             Pins("G20", dir="o"),
         ),
 
-        Resource("from_pll", 0,
+        Resource("from_pll", 0, # Bank 2
             DiffPairs("J19", "K19", dir="i"),
+            Attrs(IO_TYPE="LVCMOS33D", DIFFERSISTOR="100")
         ),
 
         Resource("to_pll", 0,
             DiffPairs("J20", "K20", dir="o"),
+            Attrs(IO_TYPE="LVCMOS33D")
         ),
 
-        UARTResource("usb_uart", 0,
+        UARTResource("usb_uart", 0, # Bank 2
             rx="J_3:1", tx="J_3:2", attrs=Attrs(IOSTANDARD="LVCMOS33")
         ),
 
