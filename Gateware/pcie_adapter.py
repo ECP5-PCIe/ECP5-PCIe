@@ -8,10 +8,10 @@ from nmigen_boards.resources import *
 # Based on https://github.com/nmigen/nmigen-boards/blob/master/nmigen_boards/ecp5_5g_evn.py
 
 
-__all__ = ["PCIeAdapterPlatform"]
+__all__ = ["ECP5PCIeAdapterPlatform"]
 
 
-class PCIeAdapterPlatform(LatticeECP5Platform):
+class ECP5PCIeAdapterPlatform(LatticeECP5Platform):
     device      = "LFE5UM5G-85F"
     package     = "BG381"
     speed       = "8"

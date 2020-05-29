@@ -22,4 +22,4 @@ class Test(Elaboratable):
         return m
 
 if __name__ == "__main__":
-    FPGA.PCIeAdapterPlatform().build(Test(), do_program=True)
+    FPGA.ECP5PCIeAdapterPlatform().build(Test(), do_program=True)
