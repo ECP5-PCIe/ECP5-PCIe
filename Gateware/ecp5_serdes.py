@@ -55,7 +55,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             p_REFCK_PWDNB="0b1",
             p_REFCK_RTERM="0b1",            # 100 Ohm
         )
-        extref0.attr.add(("LOC", "EXTREF0"))
+        extref0.attrs["LOC"] = "EXTREF0"
         m.submodules += extref0
 
         # RX
