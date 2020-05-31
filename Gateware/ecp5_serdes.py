@@ -8,7 +8,7 @@ from serdes import *
 __all__ = ["LatticeECP5PCIeSERDES"]
 
 
-class LatticeECP5PCIeSERDES(Module): # From Yumewatari
+class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
     """
     Lattice ECP5 DCU configured in PCIe mode. Assumes 100 MHz reference clock on SERDES clock
     input pair. Uses 1:2 gearing. Receiver Detection runs in TX clock domain. Only provides
@@ -175,7 +175,7 @@ class LatticeECP5PCIeSERDES(Module): # From Yumewatari
                     m.d.tx += lane.det_status.eq(pcie_con_s)
                     next = "DONE"
         
-        dcu0 = Instance("DCUA",
+        dcu0 = Instance("DCUA", # Page 71 of TN1261
             #============================ DCU
             # DCU — power management
             p_D_MACROPDB            = "0b1",
@@ -239,7 +239,7 @@ class LatticeECP5PCIeSERDES(Module): # From Yumewatari
             i_CH0_HDINN             = pins.rx_n,
             i_CH0_FFC_SB_INV_RX     = rx_inv,
 
-            p_CH0_RTERM_RX          = "0d22",   # 50 Ohm (wizard value used, does not match D/S)
+            p_CH0_RTERM_RX          = "0d22",   # 50 Ohm (wizard value used, does not match D/S, should be 0d19 there)
             p_CH0_RXIN_CM           = "0b11",   # CMFB (wizard value used)
             p_CH0_RXTERM_CM         = "0b11",   # RX Input (wizard value used)
 
