@@ -33,8 +33,6 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
     def __init__(self, pins):
         self.ref_clk = Signal() # reference clock
 
-        self.extref0.attr.add(("LOC", "EXTREF0"))
-
         self.rx_clk_o   = Signal()
         self.rx_clk_i   = Signal()
         self.rx_bus     = Signal(24)
@@ -43,6 +41,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
         self.tx_clk_i   = Signal()
         self.tx_bus     = Signal(24)
         self.__pins     = pins
+
+        self.lane = PCIeSERDESInterface(ratio=2)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -60,8 +60,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
 
         # RX
 
-        rxclk_d = ClockDomain(reset_less=True)
-        m.domains.rx = rxclk_d
+        rxclk_d = ClockDomain("rx", reset_less=True)
+        m.domains += rxclk_d
         m.d.comb += rxclk_d.clk.eq(self.rx_clk_i)
 
         rx_los   = Signal()
@@ -81,8 +81,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
 
         # TX
 
-        txclk_d = ClockDomain(reset_less=True)
-        m.domains.tx = txclk_d
+        txclk_d = ClockDomain("tx", reset_less=True)
+        m.domains += txclk_d
         m.d.comb += txclk_d.clk.eq(self.tx_clk_i)
 
         tx_lol   = Signal()
@@ -92,7 +92,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx")
         ]
 
-        self.lane = lane = PCIeSERDESInterface(ratio=2)
+        lane = self.lane
 
         m.d.comb += [
             rx_inv.eq(lane.rx_invert),
@@ -124,7 +124,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
         pcie_con    = Signal()
         pcie_con_s  = Signal()
 
-        det_timer = Signal(max=16)
+        det_timer = Signal(range(16))
 
         m.submodules += [
             FFSynchronizer(pcie_done, pcie_done_s, o_domain="tx"),
@@ -138,7 +138,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
                 # test can begin 120 ns after tx_elec_idle is set high by driving the appropriate
                 # pci_det_en_ch#_c high.
                 m.d.tx += det_timer.eq(15)
-                next = "SET-DETECT-H"
+                m.next = "SET-DETECT-H"
             with m.State("SET-DETECT-H"):
                 # 1. The user drives pcie_det_en high, putting the corresponding TX driver into
                 #    receiver detect mode. [...] The TX driver takes some time to enter this state
@@ -147,7 +147,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
                 with m.If(det_timer == 0):
                     m.d.tx += pcie_det_en.eq(1)
                     m.d.tx += det_timer.eq(15)
-                    next = "SET-STROBE-H"
+                    m.next = "SET-STROBE-H"
                 with m.Else():
                     m.d.tx += det_timer.eq(det_timer - 1)
             with m.State("SET-STROBE-H"):
@@ -155,7 +155,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
                 with m.If(det_timer == 0):
                     m.d.tx += pcie_ct.eq(1)
                     m.d.tx += det_timer.eq(3)
-                    next = "SET-STROBE-L"
+                    m.next = "SET-STROBE-L"
                 with m.Else():
                     m.d.tx += det_timer.eq(det_timer - 1)
             with m.State("SET-STROBE-L"):
@@ -164,16 +164,19 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
                 # as high)
                 with m.If(det_timer == 0):
                     m.d.tx += pcie_ct.eq(0)
-                    next = "WAIT-DONE-L"
+                    m.next = "WAIT-DONE-L"
                 with m.Else():
                     m.d.tx += det_timer.eq(det_timer - 1)
             with m.State("WAIT-DONE-L"):
                 with m.If(~pcie_done_s):
-                    next = "WAIT-DONE-H"
+                    m.next = "WAIT-DONE-H"
             with m.State("WAIT-DONE-H"):
                 with m.If(pcie_done_s):
                     m.d.tx += lane.det_status.eq(pcie_con_s)
-                    next = "DONE"
+                    m.next = "DONE"
+            with m.State("DONE"):
+                m.d.tx += lane.det_valid.eq(1)
+                m.next = "DONE"
         
         dcu0 = Instance("DCUA", # Page 71 of TN1261
             #============================ DCU
