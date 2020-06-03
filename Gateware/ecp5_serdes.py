@@ -49,8 +49,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
         pins = self.__pins
 
         extref0 = Instance("EXTREFB",
-            i_REFCLKP=pins.clk_p,
-            i_REFCLKN=pins.clk_n,
+            #i_REFCLKP=pins.clk_p, not necessary with nextpnr
+            #i_REFCLKN=pins.clk_n,
             o_REFCLKO=self.ref_clk,
             p_REFCK_PWDNB="0b1",
             p_REFCK_RTERM="0b1",            # 100 Ohm
@@ -83,6 +83,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
 
         txclk_d = ClockDomain("tx", reset_less=True)
         m.domains += txclk_d
+        lane = self.lane
         m.d.comb += txclk_d.clk.eq(self.tx_clk_i)
 
         tx_lol   = Signal()
@@ -91,8 +92,6 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
         m.submodules += [
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx")
         ]
-
-        lane = self.lane
 
         m.d.comb += [
             rx_inv.eq(lane.rx_invert),
@@ -131,14 +130,15 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             FFSynchronizer(pcie_con, pcie_con_s, o_domain="tx")
         ]
         
-        with m.FSM(domain="tx", reset=~lane.det_enable):
+        with m.FSM(domain="tx", reset="START"):
             with m.State("START"):
                 # Before starting a Receiver Detection test, the transmitter must be put into
                 # electrical idle by setting the tx_idle_ch#_c input high. The Receiver Detection
                 # test can begin 120 ns after tx_elec_idle is set high by driving the appropriate
                 # pci_det_en_ch#_c high.
                 m.d.tx += det_timer.eq(15)
-                m.next = "SET-DETECT-H"
+                with m.If(lane.det_enable):
+                    m.next = "SET-DETECT-H"
             with m.State("SET-DETECT-H"):
                 # 1. The user drives pcie_det_en high, putting the corresponding TX driver into
                 #    receiver detect mode. [...] The TX driver takes some time to enter this state
@@ -176,7 +176,10 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
                     m.next = "DONE"
             with m.State("DONE"):
                 m.d.tx += lane.det_valid.eq(1)
-                m.next = "DONE"
+                with m.If(~lane.det_enable):
+                    m.next = "START"
+                with m.Else():
+                    m.next = "DONE"
         
         dcu0 = Instance("DCUA", # Page 71 of TN1261
             #============================ DCU
@@ -237,9 +240,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             i_CH0_FFC_RRST          = 0,
             i_CH0_FFC_LANE_RX_RST   = 0,
 
-            # CH0 RX ­— input
-            i_CH0_HDINP             = pins.rx_p,
-            i_CH0_HDINN             = pins.rx_n,
+            # CH0 RX ­— input — not necessary with nextpnr
+            #i_CH0_HDINP             = pins.rx_p,
+            #i_CH0_HDINN             = pins.rx_n,
             i_CH0_FFC_SB_INV_RX     = rx_inv,
 
             p_CH0_RTERM_RX          = "0d22",   # 50 Ohm (wizard value used, does not match D/S, should be 0d19 there)
@@ -316,9 +319,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             # CH0 TX ­— reset
             i_CH0_FFC_LANE_TX_RST   = 0,
 
-            # CH0 TX ­— output
-            o_CH0_HDOUTP            = pins.tx_p,
-            o_CH0_HDOUTN            = pins.tx_n,
+            # CH0 TX ­— output — not necessary with nextpnr
+            # o_CH0_HDOUTP            = pins.tx_p,
+            # o_CH0_HDOUTN            = pins.tx_n,
 
             p_CH0_TXAMPLITUDE       = "0d1000", # 1000 mV
             p_CH0_RTERM_TX          = "0d19",   # 50 Ohm
@@ -353,8 +356,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
             o_CH0_FFS_PCIE_DONE     = pcie_done,
             o_CH0_FFS_PCIE_CON      = pcie_con,
         )
-        dcu0.attr.add(("LOC", "DCU0"))
-        dcu0.attr.add(("CHAN", "CH0"))
-        dcu0.attr.add(("BEL", "X42/Y71/DCU"))
+        dcu0.attrs["LOC"] = "DCU0"
+        dcu0.attrs["CHAN"] = "CH0"
+        dcu0.attrs["BEL"] = "X42/Y71/DCU"
         m.submodules += dcu0
         return m

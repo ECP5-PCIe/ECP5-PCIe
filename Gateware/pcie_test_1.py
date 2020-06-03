@@ -6,14 +6,8 @@ from nmigen_boards import versa_ecp5_5g as FPGA
 class Test(Elaboratable):
     def elaborate(self, platform):
         platform.add_resources([Resource("pcie_x1", 0,
-        Subsignal("clk_p", Pins("Y11")),
-        Subsignal("clk_n", Pins("Y12")),
-        Subsignal("rx_p", Pins("Y5")),
-        Subsignal("rx_n", Pins("Y6")),
-        Subsignal("tx_p", Pins("W4")),
-        Subsignal("tx_n", Pins("W5")),
-        Subsignal("perst", Pins("A6"), Attrs(IO_TYPE="LVCMOS33")),
-    )])
+            Subsignal("perst", Pins("A6"), Attrs(IO_TYPE="LVCMOS33")),
+        )])
 
         m = Module()
         cd_serdes = ClockDomain()
@@ -32,6 +26,9 @@ class Test(Elaboratable):
         ]
 
         return m
+
+import os
+os.environ["NMIGEN_verbose"] = "Yes"
 
 if __name__ == "__main__":
     FPGA.VersaECP55GPlatform().build(Test(), do_program=True)

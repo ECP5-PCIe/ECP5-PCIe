@@ -1,5 +1,6 @@
 from nmigen import *
 from nmigen.build import *
+from nmigen.hdl.ast import Part
 
 
 __all__ = ["SymbolSlip"]
@@ -49,12 +50,12 @@ class SymbolSlip(Elaboratable): # From Yumewatari
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
-        m.sync += self.__shreg.eq(Cat(self.__shreg[self.__width:], self.i))
-        m.comb += self.o.eq(Part(self.__shreg, self.__offset, self.__width))
+        m.d.sync += self.__shreg.eq(Cat(self.__shreg[self.__width:], self.i))
+        m.d.comb += self.o.eq(Part(self.__shreg, self.__offset, self.__width))
 
         commas = Signal(self.__word_size)
-        m.sync += [
-            commas[n].eq(m.i.part(self.__symbol_size * n, self.__symbol_size) == self.__comma)
+        m.d.sync += [
+            commas[n].eq(Part(self.i, self.__symbol_size * n, self.__symbol_size) == self.__comma)
             for n in range(self.__word_size)
         ]
 

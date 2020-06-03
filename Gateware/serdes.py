@@ -1,5 +1,6 @@
 from nmigen import *
 from nmigen.build import *
+from nmigen.hdl.ast import Part
 
 from align import SymbolSlip
 
@@ -116,16 +117,18 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        m.submodules.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio,
+        self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio,
                                           comma=(1<<9)|K(28,5))
-        m.comb += [
+        m.submodules += self.slip
+        
+        m.d.comb += [
             self.slip.en.eq(self.rx_align),
             self.slip.i.eq(Cat(
-                (self.__lane.rx_symbol.part(9 * n, 9), self.__lane.rx_valid[n])
+                (Part(self.__lane.rx_symbol, 9 * n, 9), self.__lane.rx_valid[n])
                 for n in range(self.__lane.ratio)
             )),
             self.rx_symbol.eq(Cat(
-                self.slip.o.part(10 * n, 9)
+                Part(self.slip.o, 10 * n, 9)
                 for n in range(self.__lane.ratio)
             )),
             self.rx_valid.eq(Cat(
