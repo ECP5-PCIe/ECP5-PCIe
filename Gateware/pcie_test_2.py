@@ -18,7 +18,7 @@ class SERDESTestbench(Elaboratable):
 
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES()
         m.d.comb += [
-            #serdes.txd.eq(K(28,3)),
+            serdes.txd.eq(K(28,3)),
             serdes.txk.eq(1),
             serdes.rxdet.eq(1),
             serdes.rxinv.eq(0),
@@ -32,8 +32,7 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("rx").eq(serdes.rxclk),
             ClockSignal("tx").eq(serdes.txclk),
         ]
-
-        m.d.tx += serdes.txd.eq(serdes.txd + 1)
+        
         #with m.FSM(domain="tx"):
         #    with m.State("1"):
         #        m.d.tx += serdes.txd.eq(K(28,5))
