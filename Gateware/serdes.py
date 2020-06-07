@@ -80,6 +80,7 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.tx_set_disp  = Signal(ratio)
         self.tx_disp      = Signal(ratio)
         self.tx_e_idle    = Signal(ratio)
+        self.tx_locked    = Signal()
 
         self.det_enable   = Signal()
         self.det_valid    = Signal()

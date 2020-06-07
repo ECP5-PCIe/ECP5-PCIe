@@ -27,7 +27,7 @@ for line in lines:
         x = val & 0b11111
         y = val & 0b11100000 >> 5
         if k and valid:
-            print("%d K%d.%d" % (valid, x, y))
+            print("%d K%d.%d %s" % (valid, x, y, "{:0b}".format(val)))
         #if k:
         #    print("%d K%d.%d" % (valid, x, y))
         #else:
