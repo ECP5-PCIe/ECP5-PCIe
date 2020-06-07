@@ -85,6 +85,10 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_valid    = Signal()
         self.det_status   = Signal()
 
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+        return m
+
 
 class PCIeSERDESAligner(PCIeSERDESInterface):
     """

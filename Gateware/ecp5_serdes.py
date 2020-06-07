@@ -46,6 +46,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # From Yumewatari
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
+        m.submodules += self.lane
+
         pins = self.__pins
 
         extref0 = Instance("EXTREFB",
