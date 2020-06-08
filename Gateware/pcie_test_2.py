@@ -5,7 +5,7 @@ from nmigen.lib.cdc import FFSynchronizer as MultiReg
 from nmigen_stdio.serial import AsyncSerial
 from utils.utils import UARTDebugger
 from ecp5_serdes import LatticeECP5PCIeSERDES
-from serdes import K, D
+from serdes import K, D, Ctrl
 def S(x, y): return (y << 5) | x
 
 # Usage: python pcie_test_2.py run
@@ -20,9 +20,8 @@ class SERDESTestbench(Elaboratable):
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES()
         m.d.comb += [
         #    serdes.txd.eq(K(28,5)),
-            serdes.txk.eq(1),
-            serdes.rxdet.eq(1),
-            serdes.rxinv.eq(0),
+            #serdes.lane.rx.eq(1), Crucial?
+            serdes.lane.rx_invert.eq(0),
         ]
 
         #m.domains.sync = ClockDomain()
@@ -42,17 +41,22 @@ class SERDESTestbench(Elaboratable):
         cntr = Signal(8)
         with m.FSM(domain="tx"):
             with m.State("1"):
-                m.d.tx += serdes.txd.eq(S(28,5))
+                m.d.tx += serdes.lane.tx_symbol.eq(Ctrl.COM)
                 m.next = "2"
             with m.State("2"):
-                m.d.tx += serdes.txd.eq(S(28,3))
+                m.d.tx += serdes.lane.tx_symbol.eq(Ctrl.IDL)
                 m.d.tx += cntr.eq(cntr + 1)
-                with m.If(cntr == 30):
+                with m.If(cntr == 3):
                     m.d.tx += cntr.eq(0)
                     m.next = "1"
 
-        platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))]) # Arduino tx
-        m.d.comb += platform.request("test").o.eq(ClockSignal("rx"))
+        platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
+        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+
+        platform.add_clock_constraint(serdes.rxclk, 250e6)
+        platform.add_clock_constraint(serdes.txclk, 250e6)
 
         #platform.add_platform_command("""FREQUENCY NET "ref_clk" 100 MHz;""")
         #platform.add_platform_command("""FREQUENCY NET "rx_clk" 250 MHz;""")
@@ -75,32 +79,19 @@ class SERDESTestbench(Elaboratable):
         led_err4 = platform.request("led",7)
         m.d.comb += [
             led_att1.eq(~(refclkcounter[25])),
-            led_att2.eq(~(serdes.rlsm)),
+            led_att2.eq(~(serdes.lane.rx_aligned)),
             led_sta1.eq(~(rxclkcounter[25])),
             led_sta2.eq(~(txclkcounter[25])),
-            led_err1.eq(~(serdes.rlos)),
-            led_err2.eq(~(serdes.rlol | serdes.tlol)),
+            led_err1.eq(~(serdes.lane.rx_present)),
+            led_err2.eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
             led_err3.eq(~(0)),#serdes.rxde0)),
             led_err4.eq(~(0)),#serdes.rxce0)),
         ]
 
-        #m.domains.por = ClockDomain(reset_less=True)
-        #reset_delay = Signal(range(2047), reset=2047)
-        #m.d.comb += [
-        #    ClockSignal("por").eq(ClockSignal("sync")),
-            #ResetSignal("sync").eq(reset_delay != 0)
-        #]
-        #with m.If(reset_delay != 0):
-        #    m.d.por += reset_delay.eq(reset_delay - 1)
-
-        trigger_rx  = Signal()
-        trigger_ref = Signal()
-        m.submodules += MultiReg(trigger_ref, trigger_rx, o_domain="rx")
-
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
-        debug = UARTDebugger(uart, 2, CAPTURE_DEPTH, Cat(serdes.rxd, serdes.rxk, serdes.rlsm, Signal(6)), "rx") # serdes.lane.rx_present & serdes.lane.rx_locked)
+        debug = UARTDebugger(uart, 2, CAPTURE_DEPTH, Cat(serdes.lane.rx_symbol, serdes.lane.rx_aligned, Signal(6)), "rx") # serdes.lane.rx_present & serdes.lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -174,8 +165,8 @@ if __name__ == "__main__":
                         if ya == 7:
                             print("EIE")
                     else:
-                        print("{}{}{}{}.{}".format(" " * indent,
+                        print("{}{}{}{}.{} {}".format(" " * indent,
                             "L" if word & (1 <<  9) else " ",
                             "K" if word & (1 <<  8) else "D",
-                            xa, ya,
+                            xa, ya, word & 0xFF,
                         ))

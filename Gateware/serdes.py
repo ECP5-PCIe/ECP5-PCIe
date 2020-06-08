@@ -3,6 +3,7 @@ from nmigen.build import *
 from nmigen.hdl.ast import Part
 
 from align import SymbolSlip
+from enum import Enum
 
 
 __all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner"]
@@ -10,6 +11,20 @@ __all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner"]
 
 def K(x, y): return (1 << 8) | (y << 5) | x
 def D(x, y): return (0 << 8) | (y << 5) | x
+
+class Ctrl(Enum):
+    PAD = K(23, 7)
+    STP = K(27, 7) # Start Transaction Layer Packet
+    SKP = K(28, 0) # Skip
+    FTS = K(28, 1) # Fast Training Sequence
+    SDP = K(28, 2) # Start Data Link Layer Packet
+    IDL = K(28, 3) # Idle
+    COM = K(28, 5) # Comma
+    EIE = K(28, 7) # Electrical Idle Exit
+    END = K(29, 7)
+    EDB = K(30, 7) # End Bad
+    
+
 
 
 class PCIeSERDESInterface(Elaboratable): # From Yumewatari
