@@ -52,12 +52,11 @@ class SymbolSlip(Elaboratable): # From Yumewatari
         word_size = self.__word_size
         symbol_size = self.__symbol_size
 
-        lastsamps = Signal(width * 2)
-        m.d.rx += lastsamps.eq(Cat(lastsamps))
-        m.d.rx += lastsamps.eq(Cat(lastsamps[width:], self.i))
+        symbol_buffer = Signal(width * 2) # Holds current symbols and symbols from last clock cycle
+        m.d.rx += symbol_buffer.eq(Cat(symbol_buffer[width:], self.i))
         offset = Signal(range(word_size))
-        m.d.rx += self.o.eq(lastsamps.bit_select(offset * symbol_size, width))
+        m.d.rx += self.o.eq(symbol_buffer.bit_select(offset * symbol_size, width))
         for i in range(word_size):
-            with m.If(lastsamps[i * symbol_size:(i + 1) * symbol_size] == self.__comma):
-                m.d.rx += offset.eq(Mux(self.en, i, 0))
+            with m.If(symbol_buffer[i * symbol_size:(i + 1) * symbol_size] == self.__comma):
+                m.d.rx += offset.eq(Mux(self.en, i, 0)) # Set offset to specific value, but only if comma symbol is received. Otherwise let offset stay like before.
         return m

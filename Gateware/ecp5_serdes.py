@@ -48,7 +48,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         m = Module()
         m.submodules += self.lane
 
-        platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing)
+        platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR
         platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
 
         m.submodules.extref0 = Instance("EXTREFB",
@@ -61,7 +61,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         lane = self.lane
 
-        if self.gearing == 1:
+        if self.gearing == 1: # Different gearing compatibility!
             m.d.comb += [
                 lane.rx_symbol.eq(self.rx_bus[0:9]),
                 lane.rx_valid.eq(self.rx_bus[0:9] != K(14,7)), # SERDES outputs K14.7 when there are coding errors
@@ -86,7 +86,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         rx_los_s = Signal()
         rx_lol   = Signal() # Loss of Lock
         rx_lol_s = Signal()
-        rx_lsm   = Signal() # 
+        rx_lsm   = Signal()
         rx_lsm_s = Signal()
         rx_inv   = Signal()
         rx_det   = Signal()
@@ -112,10 +112,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             lane.tx_locked.eq(tx_lol_s)
         ]
 
-        #m.d.comb += Cat(self.rxd, self.rxk, self.rxde, self.rxce).eq(self.rx_bus)
-        #m.d.comb += self.tx_bus.eq(Cat(self.txd, self.txk, self.txfd, self.txds))
-
-        gearing_str = "0b0" if self.gearing == 1 else "0b1"
+        gearing_str = "0b0" if self.gearing == 1 else "0b1" # Automatically select value based on gearing
 
         m.submodules.dcu0 = Instance("DCUA",
             # DCU — power management
