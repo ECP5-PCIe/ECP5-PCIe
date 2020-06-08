@@ -57,7 +57,6 @@ class SERDESTestbench(Elaboratable):
         inverted = Signal()
 
         with m.FSM(domain="rx"): # TODO: Check if ts changes between consecutive ordered sequences and only accept if it does not
-            link_num = Signal(8)
             with m.State("COMMA"):
                 with m.If(symbol1 == Ctrl.COM):
                     with m.If(symbol2 == Ctrl.PAD):
@@ -66,7 +65,7 @@ class SERDESTestbench(Elaboratable):
                     with m.If(symbol2 == Ctrl.SKP):
                         m.next = "SKP"
                     with m.If(symbol2[8] == 0):
-                        m.d.rx += link_num.eq(symbol2[:8])
+                        m.d.rx += ts.link.number.eq(symbol2[:8])
                         m.d.rx += ts.link.valid.eq(1)
                         m.next = "TSn-LANE" # Ignore the comma otherwise, could be a different ordered set
             with m.State("SKP"): # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
@@ -78,7 +77,7 @@ class SERDESTestbench(Elaboratable):
                 with m.If(symbol1 == Ctrl.PAD):
                     m.d.rx += ts.lane.valid.eq(0)
                 with m.If(symbol1[8] == 0):
-                    m.d.rx += ts.lane.eq(symbol1[:8])
+                    m.d.rx += ts.lane.number.eq(symbol1[:5])
             with m.State("TSn-DATA"):
                 m.next = "TSn-ID0"
                 with m.If(symbol1[8] == 0):
