@@ -6,11 +6,12 @@ from nmigen_stdio.serial import AsyncSerial
 from utils.utils import UARTDebugger
 from ecp5_serdes import LatticeECP5PCIeSERDES
 from serdes import K, D
+def S(x, y): return (y << 5) | x
 
 # Usage: python pcie_test_2.py run
 #        python pcie_test_2.py grab
 
-CAPTURE_DEPTH = 8192
+CAPTURE_DEPTH = 4096
 
 class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
@@ -18,7 +19,7 @@ class SERDESTestbench(Elaboratable):
 
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES()
         m.d.comb += [
-            serdes.txd.eq(K(28,3)),
+        #    serdes.txd.eq(K(28,5)),
             serdes.txk.eq(1),
             serdes.rxdet.eq(1),
             serdes.rxinv.eq(0),
@@ -32,23 +33,26 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("rx").eq(serdes.rxclk),
             ClockSignal("tx").eq(serdes.txclk),
         ]
+
+        #m.d.tx += [
+        #    serdes.txd.eq(serdes.rxd),
+        #    serdes.txk.eq(serdes.rxk),
+        #]
         
-        #with m.FSM(domain="tx"):
-        #    with m.State("1"):
-        #        m.d.tx += serdes.txd.eq(K(28,5))
-        #        m.next = "2"
-        #    with m.State("2"):
-        #        m.d.tx += serdes.txd.eq(K(28,1))
-        #        m.next = "3"
-        #    with m.State("3"):
-        #        m.d.tx += serdes.txd.eq(K(28,1))
-        #        m.next = "4"
-        #    with m.State("4"):
-        #        m.d.tx += serdes.txd.eq(K(28,1))
-        #        m.next = "1"
+        cntr = Signal(8)
+        with m.FSM(domain="tx"):
+            with m.State("1"):
+                m.d.tx += serdes.txd.eq(S(28,5))
+                m.next = "2"
+            with m.State("2"):
+                m.d.tx += serdes.txd.eq(S(28,3))
+                m.d.tx += cntr.eq(cntr + 1)
+                with m.If(cntr == 30):
+                    m.d.tx += cntr.eq(0)
+                    m.next = "1"
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))]) # Arduino tx
-        m.d.comb += platform.request("test").o.eq(ClockSignal("sync"))
+        m.d.comb += platform.request("test").o.eq(ClockSignal("rx"))
 
         #platform.add_platform_command("""FREQUENCY NET "ref_clk" 100 MHz;""")
         #platform.add_platform_command("""FREQUENCY NET "rx_clk" 250 MHz;""")
@@ -80,14 +84,14 @@ class SERDESTestbench(Elaboratable):
             led_err4.eq(~(0)),#serdes.rxce0)),
         ]
 
-        m.domains.por = ClockDomain(reset_less=True)
-        reset_delay = Signal(range(2047), reset=2047)
-        m.d.comb += [
-            ClockSignal("por").eq(ClockSignal("sync")),
+        #m.domains.por = ClockDomain(reset_less=True)
+        #reset_delay = Signal(range(2047), reset=2047)
+        #m.d.comb += [
+        #    ClockSignal("por").eq(ClockSignal("sync")),
             #ResetSignal("sync").eq(reset_delay != 0)
-        ]
-        with m.If(reset_delay != 0):
-            m.d.por += reset_delay.eq(reset_delay - 1)
+        #]
+        #with m.If(reset_delay != 0):
+        #    m.d.por += reset_delay.eq(reset_delay - 1)
 
         trigger_rx  = Signal()
         trigger_ref = Signal()
@@ -136,6 +140,7 @@ if __name__ == "__main__":
                 xa = word & 0b11111
                 ya = (word & 0b11100000) >> 5
                 if word & 0x1ff == 0x1ee:
+                    print("E", end="")
                     #print("{}KEEEEEEEE".format(
                     #    "L" if word & (1 <<  9) else " ",
                     #), end=" ")
@@ -174,6 +179,3 @@ if __name__ == "__main__":
                             "K" if word & (1 <<  8) else "D",
                             xa, ya,
                         ))
-                # print("".join(reversed("{:010b}".format(word & 3ff)), end=" ")
-                #if x % 8 == 7:
-                #    print()
