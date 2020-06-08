@@ -41,8 +41,6 @@ class SymbolSlip(Elaboratable): # From Yumewatari
 
         ###
 
-        self.__shreg  = Signal(width * 2)
-        self.__offset = Signal(range(symbol_size * (word_size - 1))) # Maybe add +1?
         self.__width = width
         self.__word_size = word_size
         self.__symbol_size = symbol_size
@@ -50,19 +48,16 @@ class SymbolSlip(Elaboratable): # From Yumewatari
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
-        m.d.sync += self.__shreg.eq(Cat(self.__shreg[self.__width:], self.i))
-        m.d.comb += self.o.eq(Part(self.__shreg, self.__offset, self.__width))
+        width = self.__width
+        word_size = self.__word_size
+        symbol_size = self.__symbol_size
 
-        commas = Signal(self.__word_size)
-        m.d.sync += [
-            commas[n].eq(Part(self.i, self.__symbol_size * n, self.__symbol_size) == self.__comma)
-            for n in range(self.__word_size)
-        ]
-
-        with m.If(self.en):
-            with m.Switch(commas):
-                for n in range(self.__word_size):
-                    with m.Case(1 << n):
-                        self.__offset.eq(self.__symbol_size * n)
-        
+        lastsamps = Signal(width * 2)
+        m.d.rx += lastsamps.eq(Cat(lastsamps))
+        m.d.rx += lastsamps.eq(Cat(lastsamps[width:], self.i))
+        offset = Signal(range(word_size))
+        m.d.rx += self.o.eq(lastsamps.bit_select(offset * symbol_size, width))
+        for i in range(word_size):
+            with m.If(lastsamps[i * symbol_size:(i + 1) * symbol_size] == self.__comma):
+                m.d.rx += offset.eq(Mux(self.en, i, 0))
         return m

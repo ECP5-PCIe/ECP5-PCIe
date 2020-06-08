@@ -137,14 +137,13 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio,
-                                          comma=(1<<9)|K(28,5))
+        self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio, comma=Cat(Ctrl.COM, 1))
         m.submodules += self.slip
         
         m.d.comb += [
             self.slip.en.eq(self.rx_align),
             self.slip.i.eq(Cat(
-                (Part(self.__lane.rx_symbol, 9 * n, 9), self.__lane.rx_valid[n])
+                (self.__lane.rx_symbol.word_select(n, 9), self.__lane.rx_valid[n])
                 for n in range(self.__lane.ratio)
             )),
             self.rx_symbol.eq(Cat(
