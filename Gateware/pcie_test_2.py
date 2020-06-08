@@ -51,28 +51,58 @@ class SERDESTestbench(Elaboratable):
                     m.d.tx += cntr.eq(0)
                     m.next = "1"
 
-        rx_data = Cat(lane.rx_symbol[9:18], lane.rx_symbol[0:9])
-
         ts = Record(ts_layout)
+        symbol1 = lane.rx_symbol[0: 9]
+        symbol2 = lane.rx_symbol[9:18]
+        inverted = Signal()
 
-        #with m.FSM(domain="rx"):
-        #    with m.State("COMMA"):
-        #        linknum = rx_data[9:18] # Potential link number
-        #        with m.If(rx_data[0:9] == Ctrl.COM):
-        #            with m.If(linknum == Ctrl.PAD):
-        #                m.d.rx += ts.link.valid.eq(0)
-        #                m.next = "TSn-LINK"
-        #            with m.If(linknum == Ctrl.SKP):
-        #                m.next = "SKP0-A"
-        #        with m.If(rx_data[9:18] == Ctrl.COM):
-        #            m.next = "TSn-LINK"
-        #    with m.State("SKP0-A"):
-        #        m.next = "SKP1"
-        #    with m.State("SKP1"):
-        #        m.next = "SKP2"
-        #    with m.State("SKP2"):
-        #        m.next = "COMMA"
-        #    with m.State("TSn-LINK"):
+        with m.FSM(domain="rx"): # TODO: Check if ts changes between consecutive ordered sequences and only accept if it does not
+            link_num = Signal(8)
+            with m.State("COMMA"):
+                with m.If(symbol1 == Ctrl.COM):
+                    with m.If(symbol2 == Ctrl.PAD):
+                        m.d.rx += ts.link.valid.eq(0)
+                        m.next = "TSn-LANE"
+                    with m.If(symbol2 == Ctrl.SKP):
+                        m.next = "SKP"
+                    with m.If(symbol2[8] == 0):
+                        m.d.rx += link_num.eq(symbol2[:8])
+                        m.d.rx += ts.link.valid.eq(1)
+                        m.next = "TSn-LANE" # Ignore the comma otherwise, could be a different ordered set
+            with m.State("SKP"): # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
+                m.next = "COMMA"
+            with m.State("TSn-LANE"):
+                m.next = "TSn-DATA"
+                with m.If(symbol2[8] == 0):
+                    m.d.rx += ts.n_fts.eq(symbol2[:8])
+                with m.If(symbol1 == Ctrl.PAD):
+                    m.d.rx += ts.lane.valid.eq(0)
+                with m.If(symbol1[8] == 0):
+                    m.d.rx += ts.lane.eq(symbol1[:8])
+            with m.State("TSn-DATA"):
+                m.next = "TSn-ID0"
+                with m.If(symbol1[8] == 0):
+                    m.d.rx += Cat(ts.rate).eq(symbol1[:8])
+                with m.If(symbol2[8] == 0):
+                    m.d.rx += Cat(ts.ctrl).eq(symbol2[:5])
+            for i in range(4):
+                with m.State("TSn-ID%d" % i):
+                    m.next = "TSn-ID%d" % (i + 1)
+                    with m.If(symbol1 == D(10,2)):
+                        m.d.rx += ts.ts_id.eq(0)
+                    with m.If(symbol1 == D(5,2)):
+                        m.d.rx += ts.ts_id.eq(1)
+                    with m.If(symbol1 == D(21,5)):
+                        m.d.rx += ts.ts_id.eq(0)
+                        m.d.rx += inverted.eq(1)
+                    with m.If(symbol1 == D(26,5)):
+                        m.d.rx += ts.ts_id.eq(1)
+                        m.d.rx += inverted.eq(1)
+            with m.State("TSn-ID4"):
+                m.next = "COMMA"
+                with m.If(inverted):
+                    lane.rx_invert.eq(~lane.rx_invert)
+
 
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
