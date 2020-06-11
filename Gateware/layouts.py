@@ -29,3 +29,13 @@ ts_layout = [
     ]),
     ("ts_id",       1), # 0: TS1, 1: TS2
 ]
+
+ltssm_layout = [
+    ("link", [
+        ("speed", 1), # 0: 2.5, 1: 5
+        ("up", 1),
+        ("training", 1),
+    ]),
+    ("recv_err", 2),
+    ("presence",1),
+]

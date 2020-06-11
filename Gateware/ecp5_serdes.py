@@ -112,6 +112,71 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             lane.tx_locked.eq(tx_lol_s)
         ]
 
+        pcie_det_en = Signal()
+        pcie_ct     = Signal()
+        pcie_done   = Signal()
+        pcie_done_s = Signal()
+        pcie_con    = Signal()
+        pcie_con_s  = Signal()
+
+        det_timer = Signal(range(16))
+
+        m.submodules += [
+            FFSynchronizer(pcie_done, pcie_done_s, o_domain="tx"),
+            FFSynchronizer(pcie_con, pcie_con_s, o_domain="tx")
+        ]
+
+        with m.FSM(domain="tx", reset="START"):
+            with m.State("START"):
+                # Before starting a Receiver Detection test, the transmitter must be put into
+                # electrical idle by setting the tx_idle_ch#_c input high. The Receiver Detection
+                # test can begin 120 ns after tx_elec_idle is set high by driving the appropriate
+                # pci_det_en_ch#_c high.
+                m.d.tx += det_timer.eq(15)
+                with m.If(lane.det_enable):
+                    m.next = "SET-DETECT-H"
+            with m.State("SET-DETECT-H"):
+                # 1. The user drives pcie_det_en high, putting the corresponding TX driver into
+                #    receiver detect mode. [...] The TX driver takes some time to enter this state
+                #    so the pcie_det_en must be driven high for at least 120ns before pcie_ct
+                #    is asserted.
+                with m.If(det_timer == 0):
+                    m.d.tx += pcie_det_en.eq(1)
+                    m.d.tx += det_timer.eq(15)
+                    m.next = "SET-STROBE-H"
+                with m.Else():
+                    m.d.tx += det_timer.eq(det_timer - 1)
+            with m.State("SET-STROBE-H"):
+                # 2. The user drives pcie_ct high for four byte clocks.
+                with m.If(det_timer == 0):
+                    m.d.tx += pcie_ct.eq(1)
+                    m.d.tx += det_timer.eq(3)
+                    m.next = "SET-STROBE-L"
+                with m.Else():
+                    m.d.tx += det_timer.eq(det_timer - 1)
+            with m.State("SET-STROBE-L"):
+                # 3. SERDES drives the corresponding pcie_done low.
+                # (this happens asynchronously, so we're going to observe a few samples of pcie_done
+                # as high)
+                with m.If(det_timer == 0):
+                    m.d.tx += pcie_ct.eq(0)
+                    m.next = "WAIT-DONE-L"
+                with m.Else():
+                    m.d.tx += det_timer.eq(det_timer - 1)
+            with m.State("WAIT-DONE-L"):
+                with m.If(~pcie_done_s):
+                    m.next = "WAIT-DONE-H"
+            with m.State("WAIT-DONE-H"):
+                with m.If(pcie_done_s):
+                    m.d.tx += lane.det_status.eq(pcie_con_s)
+                    m.next = "DONE"
+            with m.State("DONE"):
+                m.d.tx += lane.det_valid.eq(1)
+                with m.If(~lane.det_enable):
+                    m.next = "START"
+                with m.Else():
+                    m.next = "DONE"
+
         gearing_str = "0b0" if self.gearing == 1 else "0b1" # Automatically select value based on gearing
 
         m.submodules.dcu0 = Instance("DCUA",
@@ -276,6 +341,12 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # TX CH — data
             **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)},
             p_CH0_ENC_BYPASS        ="0b0",
+
+            # CH0 DET
+            i_CH0_FFC_PCIE_DET_EN   = pcie_det_en,
+            i_CH0_FFC_PCIE_CT       = pcie_ct,
+            o_CH0_FFS_PCIE_DONE     = pcie_done,
+            o_CH0_FFS_PCIE_CON      = pcie_con,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         m.submodules.dcu0.attrs["CHAN"] = "CH0"
