@@ -51,6 +51,16 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR
         platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
 
+        rx_clk_i = Signal()
+        tx_clk_i = Signal()
+        rx_clk_o = Signal()
+        tx_clk_o = Signal()
+
+        m.d.comb += rx_clk_i.eq(rx_clk_o)
+        m.d.comb += tx_clk_i.eq(rx_clk_o)
+        m.d.comb += self.rx_clk.eq(rx_clk_o)
+        m.d.comb += self.tx_clk.eq(tx_clk_o)
+
         m.submodules.extref0 = Instance("EXTREFB",
             o_REFCLKO=self.ref_clk,
             p_REFCK_PWDNB="0b1",
@@ -168,7 +178,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     m.next = "WAIT-DONE-H"
             with m.State("WAIT-DONE-H"):
                 with m.If(pcie_done_s):
-                    m.d.tx += lane.det_status.eq(pcie_con_s)
+                    #m.d.tx += lane.det_status.eq(pcie_con_s) TODO: Figure this out
+                    m.d.tx += lane.det_status.eq(1)
                     m.next = "DONE"
             with m.State("DONE"):
                 m.d.tx += lane.det_valid.eq(1)
@@ -244,8 +255,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH ­— clocking
             i_CH0_RX_REFCLK         =self.ref_clk,
-            o_CH0_FF_RX_PCLK        =self.rx_clk,
-            i_CH0_FF_RXI_CLK        =self.rx_clk,
+            o_CH0_FF_RX_PCLK        =rx_clk_o,
+            i_CH0_FF_RXI_CLK        =rx_clk_i,
 
             p_CH0_RX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
             p_CH0_FF_RX_H_CLK_EN    = gearing_str,    # enable  DIV/2 output clock
@@ -331,8 +342,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_TDRV_SLICE5_SEL   ="0b00",    # power down
 
             # TX CH ­— clocking
-            o_CH0_FF_TX_PCLK        =self.tx_clk,
-            i_CH0_FF_TXI_CLK        =self.rx_clk,
+            o_CH0_FF_TX_PCLK        =tx_clk_o,
+            i_CH0_FF_TXI_CLK        =tx_clk_i,
 
             p_CH0_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
             p_CH0_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock

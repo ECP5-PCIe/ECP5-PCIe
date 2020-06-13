@@ -37,24 +37,26 @@ class PCIePhyRX(Elaboratable):
         symbol1 = lane.rx_symbol[0: 9]
         symbol2 = lane.rx_symbol[9:18]
         inverted = Signal()
+        self.start_receive_ts = Signal()
 
         with m.FSM(domain="rx"): # TODO: Check if ts changes between consecutive ordered sequences and only accept if it does not
             with m.State("COMMA"):
                 with m.If(symbol1 == Ctrl.COM):
                     with m.If(symbol2 == Ctrl.PAD):
                         m.d.rx += ts_current.link.valid.eq(0)
-                        m.next = "TSn-LANE"
+                        m.next = "TSn-LANE-FTS"
                     with m.If(symbol2 == Ctrl.SKP):
                         m.next = "SKP"
                     with m.If(symbol2[8] == 0):
                         m.d.rx += ts_current.link.number.eq(symbol2[:8])
                         m.d.rx += ts_current.link.valid.eq(1)
-                        m.next = "TSn-LANE" # Ignore the comma otherwise, could be a different ordered set
+                        m.next = "TSn-LANE-FTS" # Ignore the comma otherwise, could be a different ordered set
             with m.State("SKP"): # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
                 m.next = "COMMA"
-            with m.State("TSn-LANE"):
+            with m.State("TSn-LANE-FTS"):
                 m.next = "TSn-DATA"
                 m.d.rx += ts.valid.eq(1)
+                m.d.rx += self.start_receive_ts.eq(1)
                 with m.If(symbol2[8] == 0):
                     m.d.rx += ts_current.n_fts.eq(symbol2[:8])
                 with m.If(symbol1 == Ctrl.PAD):
@@ -64,6 +66,7 @@ class PCIePhyRX(Elaboratable):
                     m.d.rx += ts_current.lane.number.eq(symbol1[:5])
             with m.State("TSn-DATA"):
                 m.next = "TSn-ID0"
+                m.d.rx += self.start_receive_ts.eq(0)
                 with m.If(symbol1[8] == 0):
                     m.d.rx += Cat(ts_current.rate).eq(symbol1[:8])
                 with m.If(symbol2[8] == 0):

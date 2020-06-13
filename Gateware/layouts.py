@@ -33,7 +33,7 @@ ts_layout = [
 ltssm_layout = [
     ("link", [
         ("speed", 1), # 0: 2.5, 1: 5
-        ("up", 1),
+        ("up", 1), # Currently the only thing that is implemented
         ("training", 1),
     ]),
     ("recv_err", 2),

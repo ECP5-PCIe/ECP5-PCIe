@@ -1,20 +1,20 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen_boards import versa_ecp5_5g as FPGA
-from nmigen.lib.cdc import FFSynchronizer as MultiReg
 from nmigen_stdio.serial import AsyncSerial
 from utils.utils import UARTDebugger
 from ecp5_serdes import LatticeECP5PCIeSERDES
 from serdes import K, D, Ctrl, PCIeSERDESAligner
 from layouts import ts_layout
-from phy_rx import PCIePhyRX
+from ltssm import *
 def S(x, y): return (y << 5) | x
 
-# Usage: python pcie_test_2.py run
-#        python pcie_test_2.py grab
+# Usage: python test_pcie_2.py run
+#        python test_pcie_2.py grab
 
 CAPTURE_DEPTH = 4096
-TS_TEST = True
+TS_TEST = False
+TX_TEST = False
 
 class SERDESTestbench(Elaboratable):
     def __init__(self, tstest=False):
@@ -26,38 +26,20 @@ class SERDESTestbench(Elaboratable):
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
-        #lane = serdes.lane
+        m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
 
         m.d.comb += [
-        #    serdes.txd.eq(K(28,5)),
-            #lane.rx.eq(1), Crucial?
-            lane.rx_invert.eq(0),
+            #lane.rx_invert.eq(0),
             lane.rx_align.eq(1),
         ]
 
-        #m.domains.sync = ClockDomain()
         m.domains.rx = ClockDomain()
         m.domains.tx = ClockDomain()
         m.d.comb += [
-            #ClockSignal("sync").eq(serdes.refclk),
             ClockSignal("rx").eq(serdes.rx_clk),
             ClockSignal("tx").eq(serdes.tx_clk),
         ]
-        
-        cntr = Signal(8)
-        #m.d.tx += lane.tx_symbol.eq(Ctrl.IDL)
-        with m.FSM(domain="tx"):
-            with m.State("1"):
-                m.d.tx += lane.tx_symbol.eq(Ctrl.COM)
-                m.next = "2"
-            with m.State("2"):
-                m.d.tx += lane.tx_symbol.eq(Ctrl.SKP)
-                m.d.tx += cntr.eq(cntr + 1)
-                with m.If(cntr == 3):
-                    m.d.tx += cntr.eq(0)
-                    m.next = "1"
-
-
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
         m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
@@ -71,6 +53,10 @@ class SERDESTestbench(Elaboratable):
         txclkcounter = Signal(32)
         m.d.tx += txclkcounter.eq(txclkcounter + 1)
 
+        detstatuscounter = Signal(7)
+        with m.If(lane.det_valid & lane.det_status):
+            m.d.tx += detstatuscounter.eq(detstatuscounter + 1)
+
         led_att1 = platform.request("led",0)
         led_att2 = platform.request("led",1)
         led_sta1 = platform.request("led",2)
@@ -79,7 +65,6 @@ class SERDESTestbench(Elaboratable):
         led_err2 = platform.request("led",5)
         led_err3 = platform.request("led",6)
         led_err4 = platform.request("led",7)
-        m.d.rx += lane.det_enable.eq(1)
         m.d.comb += [
             led_att1.eq(~(refclkcounter[25])),
             led_att2.eq(~(serdes.lane.rx_aligned)),
@@ -87,8 +72,8 @@ class SERDESTestbench(Elaboratable):
             led_sta2.eq(~(txclkcounter[25])),
             led_err1.eq(~(serdes.lane.rx_present)),
             led_err2.eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
-            led_err3.eq(~(lane.det_valid)),#serdes.rxde0)),
-            led_err4.eq(~(lane.det_status)),#serdes.rxce0)),
+            led_err3.eq(~(0)),#serdes.rxde0)),
+            led_err4.eq(~(ltssm.status.link.up)),#serdes.rxce0)),
         ]
         triggered = Signal(reset = 1)
         #m.d.tx += triggered.eq((triggered ^ ((lane.rx_symbol[0:9] == Ctrl.EIE) | (lane.rx_symbol[9:18] == Ctrl.EIE))))
@@ -97,8 +82,6 @@ class SERDESTestbench(Elaboratable):
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
 
-
-        m.d.rx += lane.tx_e_idle.eq(1)
         if self.tstest:
             # l = Link Number, L = Lane Number, v = Link Valid, V = Lane Valid, t = TS Valid, T = TS ID, n = FTS count, r = TS.rate, c = TS.ctrl, d = lane.det_status, D = lane.det_valid
             # DdTcccccrrrrrrrrnnnnnnnnLLLLLtVvllllllll
@@ -106,7 +89,10 @@ class SERDESTestbench(Elaboratable):
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(ts.link.number, ts.link.valid, ts.lane.valid, ts.valid, ts.lane.number, ts.n_fts, ts.rate, ts.ctrl, ts.ts_id, Signal(2)), "rx") # lane.rx_present & lane.rx_locked)
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
         else:
-            debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
+            if TX_TEST:
+                debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(3), ltssm.debug_state), "tx") # lane.rx_present & lane.rx_locked)
+            else:
+                debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(2), ltssm.debug_state), "rx", triggered) # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -117,8 +103,8 @@ import sys
 import serial
 
 
-#import os
-#os.environ["NMIGEN_verbose"] = "Yes"
+import os
+os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":
@@ -213,8 +199,8 @@ if __name__ == "__main__":
                                 if ya == 7:
                                     print("EIE")
                             else:
-                                print("{}{}{}{}.{} {}".format(" " * indent,
+                                print("{}{}{}{}.{} \t{} \t{} \t{}".format(" " * indent,
                                     "L" if word & (1 << 9) else " ",
                                     "K" if word & (1 << 8) else "D",
-                                    xa, ya, word & 0xFF,
+                                    xa, ya, word & 0xFF, (word & 0xFE00) >> 8, (word & 0xF000) >> 12
                                 ))
