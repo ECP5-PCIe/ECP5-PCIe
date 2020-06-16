@@ -12,9 +12,10 @@ def S(x, y): return (y << 5) | x
 # Usage: python test_pcie_2.py run
 #        python test_pcie_2.py grab
 
-CAPTURE_DEPTH = 4096
+CAPTURE_DEPTH = 128
 TS_TEST = False
-TX_TEST = False
+FSM_LOG = True
+#TX_TEST = False
 
 class SERDESTestbench(Elaboratable):
     def __init__(self, tstest=False):
@@ -82,17 +83,35 @@ class SERDESTestbench(Elaboratable):
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
 
+        debug1 = Signal(16)
+        debug2 = Signal(16)
+        debug3 = Signal(16)
+        debug4 = Signal(16)
+        m.d.comb += debug1.eq(ltssm.tx_ts_count)
+        m.d.comb += debug2.eq(ltssm.rx_ts_count)
+        m.d.comb += debug3.eq(Cat(phy_rx.ts.valid, phy_rx.ts.lane.valid, phy_rx.ts.link.valid, phy_rx.ts.ts_id))
+        m.d.comb += debug4.eq(1234)
+
         if self.tstest:
             # l = Link Number, L = Lane Number, v = Link Valid, V = Lane Valid, t = TS Valid, T = TS ID, n = FTS count, r = TS.rate, c = TS.ctrl, d = lane.det_status, D = lane.det_valid
             # DdTcccccrrrrrrrrnnnnnnnnLLLLLtVvllllllll
             debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(phy_rx.ts.link.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, phy_rx.ts.valid, phy_rx.ts.lane.number, phy_rx.ts.n_fts, phy_rx.ts.rate, phy_rx.ts.ctrl, phy_rx.ts.ts_id, lane.det_status, lane.det_valid), "rx") # lane.rx_present & lane.rx_locked)
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(ts.link.number, ts.link.valid, ts.lane.valid, ts.valid, ts.lane.number, ts.n_fts, ts.rate, ts.ctrl, ts.ts_id, Signal(2)), "rx") # lane.rx_present & lane.rx_locked)
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
+        elif FSM_LOG:
+            time = Signal(64)
+            m.d.rx += time.eq(time + 1)
+            last_state = Signal(8)
+            m.d.rx += last_state.eq(ltssm.debug_state)
+            # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
+            debug = UARTDebugger(uart, 10, CAPTURE_DEPTH, Cat(last_state, ltssm.debug_state, time), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         else:
-            if TX_TEST:
-                debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(3), ltssm.debug_state), "tx") # lane.rx_present & lane.rx_locked)
-            else:
-                debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(2), ltssm.debug_state), "rx", triggered) # lane.rx_present & lane.rx_locked)
+            #if TX_TEST:
+            #    debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(3), ltssm.debug_state), "tx") # lane.rx_present & lane.rx_locked)
+            #else:
+            #    debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(2), ltssm.debug_state), "rx", triggered) # lane.rx_present & lane.rx_locked)
+            # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
+            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -103,8 +122,8 @@ import sys
 import serial
 
 
-import os
-os.environ["NMIGEN_verbose"] = "Yes"
+#import os
+#os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":
@@ -149,58 +168,81 @@ if __name__ == "__main__":
                     print("TS ID %d" % (ts_id + 1), end= " \t")
                     print("Det Status %d" % det_status, end= " \t")
                     print("Det Valid %d" % det_valid)
+                elif FSM_LOG:
+                    # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
+                    chars = port.read(10 * 2 + 1)
+                    try:
+                        data = int(chars, 16)
+                    except:
+                        print("err " + str(chars))
+                        data = 0
+                    time = (data & 0xFFFFFFFFFFFFFFFF) >> 16
+                    old = data & 0xFF
+                    new = (data & 0xFF00) >> 8
+                    print("{:,}".format(time), end=" ")
+                    print(old, end="->")
+                    print(new)
                 else:
-                    chars = port.read(4 * 2 + 1)
-                    phi = "A"
-                    for charpart in [chars[4:8], chars[:4]]: # Endianness!
-                        #print("")
-                        #print(charpart)
-                        word = 5
-                        try:
-                            word = int(charpart, 16)
-                        except:
-                            print("err " + str(chars))
+                    def print_word(word, indent, end=""):
                         xa = word & 0b11111
                         ya = (word & 0b11100000) >> 5
-                        print(phi, end=" ")
-                        phi = "B"
                         if word & 0x1ff == 0x1ee:
-                            print("E", end="")
-                            #print("{}KEEEEEEEE".format(
-                            #    "L" if word & (1 <<  9) else " ",
-                            #), end=" ")
-                            pass
+                            print("Error\t", end=end)
                         elif True: #word & (1 <<  8):
                             if xa == 27 and ya == 7:
-                                print("STP")
+                                print("STP\t", end=end)
                                 indent = indent + 1
                             elif xa == 23 and ya == 7:
-                                print("PAD")
+                                print("PAD\t", end=end)
                             elif xa == 29 and ya == 7:
-                                print("END")
+                                print("END\t", end=end)
                                 if indent > 0:
                                     indent = indent - 1
                             elif xa == 30 and ya == 7:
-                                print("EDB")
+                                print("EDB\t", end=end)
                                 if indent > 0:
                                     indent = indent - 1
                             elif xa == 28:
                                 if ya == 0:
-                                    print("SKP")
+                                    print("SKP\t", end=end)
                                 if ya == 1:
-                                    print("FTS")
+                                    print("FTS\t", end=end)
                                 if ya == 2:
-                                    print("SDP")
+                                    print("SDP\t", end=end)
                                     indent = indent + 1
                                 if ya == 3:
-                                    print("IDL")
+                                    print("IDL\t", end=end)
                                 if ya == 5:
-                                    print("COM")
+                                    print("COM\t", end=end)
                                 if ya == 7:
-                                    print("EIE")
+                                    print("EIE\t", end=end)
                             else:
-                                print("{}{}{}{}.{} \t{} \t{} \t{}".format(" " * indent,
+                                print("{}{}{}{}.{} \t{}".format(" " * 0 * indent,
                                     "L" if word & (1 << 9) else " ",
                                     "K" if word & (1 << 8) else "D",
-                                    xa, ya, word & 0xFF, (word & 0xFE00) >> 8, (word & 0xF000) >> 12
-                                ))
+                                    xa, ya, word & 0xFF
+                                ), end=end)
+                        return indent
+                    # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
+                    chars = port.read(17 * 2 + 1)
+                    try:
+                        data = int(chars, 16)
+                    except:
+                        print("err " + str(chars))
+                        data = 0
+                    print("RX:", end="\t")
+                    indent = print_word(data & 0x3FF, indent, end=" \t")
+                    indent = print_word((data & 0x3FF0000) >> 16, indent, end=" \t")
+                    print("TX:", end="\t")
+                    indent = print_word((data & 0x3FF0000000000) >> 40, indent, end=" \t")
+                    indent = print_word((data & 0x3FF00000000000000) >> 56, indent, end=" \t")
+                    print("LTSSM:", end="\t")
+                    print((data & 0xFF00000000) >> 32, end="\t")
+                    print("DEBUG1:", end="\t")
+                    print((data & 0xFFFF000000000000000000) >> 72, end="\t")
+                    print("DEBUG2:", end="\t")
+                    print((data & 0xFFFF0000000000000000000000) >> 88, end="\t")
+                    print("DEBUG3:", end="\t")
+                    print(bin((data & 0xFFFF00000000000000000000000000) >> 104), end="\t")
+                    print("DEBUG4:", end="\t")
+                    print((data & 0xFFFF000000000000000000000000000000) >> 120)

@@ -18,6 +18,7 @@ class PCIePhyTX(Elaboratable):
         assert lane.ratio == 2
         self.lane = lane
         self.ts = Record(ts_layout)
+        self.idle = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -25,6 +26,8 @@ class PCIePhyTX(Elaboratable):
         lane = self.lane
         ts = self.ts # ts to transmit
         self.start_send_ts = Signal()
+        self.idle = Signal()
+        self.eidle = Signal(2)
         symbol1 = lane.tx_symbol[0: 9]
         symbol2 = lane.tx_symbol[9:18]
 
@@ -43,6 +46,11 @@ class PCIePhyTX(Elaboratable):
                         m.d.tx += symbol2.eq(Cat(ts.link.number, Signal())) # Hopefully the right order?
                     with m.Else():
                         m.d.tx += symbol2.eq(Ctrl.PAD)
+                with m.Elif(self.idle):
+                    m.d.tx += symbol1.eq(Ctrl.IDL)
+                    m.d.tx += symbol2.eq(Ctrl.IDL)
+                with m.Else():
+                    m.d.tx += lane.tx_e_idle.eq(self.eidle)
                 #with m.Else():
                 #    m.d.tx += lane.tx_e_idle.eq(0b11)
             with m.State("TSn-LANE-FTS"):

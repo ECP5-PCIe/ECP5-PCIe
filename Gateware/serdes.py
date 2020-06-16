@@ -100,6 +100,13 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_enable   = Signal()
         self.det_valid    = Signal()
         self.det_status   = Signal()
+    
+    def rx_has_symbol(self, symbol):
+        has = True
+        s = "1234567890ABDEFGHIJKLMNOPQ"
+        for i in range(self.ratio):
+            has |= self.rx_symbol[i * 9 : i * 9 + 9] == symbol
+        return has
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()

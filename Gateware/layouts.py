@@ -38,4 +38,5 @@ ltssm_layout = [
     ]),
     ("recv_err", 2),
     ("presence",1),
+    ("idle_to_rlock_transitioned", 8)
 ]
