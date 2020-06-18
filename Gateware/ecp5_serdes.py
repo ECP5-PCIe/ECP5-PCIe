@@ -37,47 +37,59 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         self.tx_clk = Signal()  # generated word clock
 
+        # RX and TX buses from / to the SERDES
         self.rx_bus = Signal(24)
         self.tx_bus = Signal(24)
 
+        # The PCIe lane with all signals necessary to control it
         self.lane = PCIeSERDESInterface(ratio=gearing)
         
+        # Ratio, 1:1 means one symbol received per cycle, 1:2 means two symbols received per cycle, halving the output clock frequency.
         self.gearing = gearing
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
-        m.submodules += self.lane
 
-        platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR
+        lane = self.lane
+        m.submodules += lane # Add the PCIe Lane as a submodule
+
+        platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR, set the maximum clock frequency such that errors are given
         platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
 
+        # RX and TX clock input signals, these go to the SERDES.
         rx_clk_i = Signal()
         tx_clk_i = Signal()
+        # RX and TX clock output signals, these come from the SERDES.
         rx_clk_o = Signal()
         tx_clk_o = Signal()
 
+        # Connect RX and TX SERDES clock inputs to the RX clock output
         m.d.comb += rx_clk_i.eq(rx_clk_o)
         m.d.comb += tx_clk_i.eq(rx_clk_o)
+        # Clocks exposed by this module are the clock for rx symbol input and tx symbol output, usually they should be frequency-locked but have variable phase offset.
         m.d.comb += self.rx_clk.eq(rx_clk_o)
         m.d.comb += self.tx_clk.eq(tx_clk_o)
 
+
+        # The clock input, on the Versa board this comes from the ispCLOCK IC
         m.submodules.extref0 = Instance("EXTREFB",
-            o_REFCLKO=self.ref_clk,
+            o_REFCLKO=self.ref_clk, # The reference clock is output to ref_clk, it is not really accessible as a signal, since it only exists within the SERDES
             p_REFCK_PWDNB="0b1",
             p_REFCK_RTERM="0b1",            # 100 Ohm
             p_REFCK_DCBIAS_EN="0b0",
         )
-        m.submodules.extref0.attrs["LOC"] = "EXTREF0"
+        m.submodules.extref0.attrs["LOC"] = "EXTREF0" # Locate it 
 
-        lane = self.lane
 
         if self.gearing == 1: # Different gearing compatibility!
+            # If it is 1:1, only the first symbol has data
             m.d.comb += [
                 lane.rx_symbol.eq(self.rx_bus[0:9]),
                 lane.rx_valid.eq(self.rx_bus[0:9] != K(14,7)), # SERDES outputs K14.7 when there are coding errors
                 self.tx_bus.eq(Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle))
             ]
         else:
+            # For 1:2, the output symbols get composed from both symbols, structure of rx_data and tx_data is shown on page 8/9 of TN1261
             m.d.comb += [
                 lane.rx_symbol.eq(Cat(
                     self.rx_bus[ 0: 9],
@@ -90,22 +102,22 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     lane.tx_symbol[9:18], lane.tx_set_disp[1], lane.tx_disp[1], lane.tx_e_idle[1])),
             ]
 
-        # RX signals
 
+        # RX signals and their domain-crossed parts
         rx_los   = Signal() # Loss of Signal
         rx_los_s = Signal()
-        rx_lol   = Signal() # Loss of Lock
+        rx_lol   = Signal() # RX Loss of Lock
         rx_lol_s = Signal()
-        rx_lsm   = Signal()
+        rx_lsm   = Signal() # Sync state machine status
         rx_lsm_s = Signal()
-        rx_inv   = Signal()
-        rx_det   = Signal()
+        rx_inv   = Signal() # Invert RX
+        rx_det   = Signal() # RX detected
 
         # TX signals
-
-        tx_lol   = Signal()
+        tx_lol   = Signal() # TX PLL Loss of Lock
         tx_lol_s = Signal()
 
+        # Clock domain crossing for status signals
         m.submodules += [
             FFSynchronizer(rx_los, rx_los_s, o_domain="rx"),
             FFSynchronizer(rx_lol, rx_lol_s, o_domain="rx"),
@@ -113,24 +125,26 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
         ]
 
+        # Connect the signals to the lanes signals
         m.d.comb += [
             rx_inv.eq(lane.rx_invert),
             rx_det.eq(lane.rx_align),
-            lane.rx_present.eq(~rx_los_s),
+            lane.rx_present.eq(~rx_los_s), 
             lane.rx_locked .eq(~rx_lol_s),
             lane.rx_aligned.eq(rx_lsm_s),
             lane.tx_locked.eq(tx_lol_s)
         ]
 
-        pcie_det_en = Signal()
-        pcie_ct     = Signal()
-        pcie_done   = Signal()
+        pcie_det_en = Signal() # Enable lane detection
+        pcie_ct     = Signal() # Scan enable flag
+        pcie_done   = Signal() # Scan finished flag
         pcie_done_s = Signal()
-        pcie_con    = Signal()
+        pcie_con    = Signal() # PCIe lane connected
         pcie_con_s  = Signal()
 
-        det_timer = Signal(range(16))
+        det_timer = Signal(range(16)) # Detection Timer
 
+        # Clock domain crossing for PCIe detection signals
         m.submodules += [
             FFSynchronizer(pcie_done, pcie_done_s, o_domain="tx"),
             FFSynchronizer(pcie_con, pcie_con_s, o_domain="tx")
@@ -313,8 +327,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             o_CH0_FFS_RLOL          =rx_lol,
 
             # RX CH — data
-            **{"o_CH0_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)},
-            p_CH0_DEC_BYPASS        ="0b0",
+            **{"o_CH0_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
+            p_CH0_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
             p_CH0_TPWDNB            ="0b1",
@@ -342,15 +356,15 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_TDRV_SLICE5_SEL   ="0b00",    # power down
 
             # TX CH ­— clocking
-            o_CH0_FF_TX_PCLK        =tx_clk_o,
-            i_CH0_FF_TXI_CLK        =tx_clk_i,
+            o_CH0_FF_TX_PCLK        =tx_clk_o, # Output from SERDES
+            i_CH0_FF_TXI_CLK        =tx_clk_i, # Input to SERDES
 
             p_CH0_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
             p_CH0_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock
             p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
 
             # TX CH — data
-            **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)},
+            **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
             p_CH0_ENC_BYPASS        ="0b0",
 
             # CH0 DET
