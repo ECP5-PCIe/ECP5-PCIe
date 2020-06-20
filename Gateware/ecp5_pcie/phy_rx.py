@@ -1,7 +1,7 @@
 from nmigen import *
 from nmigen.build import *
-from serdes import K, D, Ctrl, PCIeSERDESInterface
-from layouts import ts_layout
+from .serdes import K, D, Ctrl, PCIeSERDESInterface
+from .layouts import ts_layout
 
 class PCIePhyRX(Elaboratable):
     """

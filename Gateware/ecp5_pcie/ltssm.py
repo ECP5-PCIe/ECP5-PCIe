@@ -1,10 +1,12 @@
 from nmigen import *
 from nmigen.build import *
-from serdes import K, D, Ctrl, PCIeSERDESInterface
-from layouts import ltssm_layout
-from phy_tx import PCIePhyTX
-from phy_rx import PCIePhyRX
+
 from enum import Enum
+
+from .serdes import K, D, Ctrl, PCIeSERDESInterface
+from .layouts import ltssm_layout
+from .phy_tx import PCIePhyTX
+from .phy_rx import PCIePhyRX
 
 class State(Enum):
     Detect = 0

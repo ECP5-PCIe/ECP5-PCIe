@@ -1,0 +1,37 @@
+[dumpfile] "/home/user/FPGA/ECP5-PCIe/Tests/test.vcd"
+[dumpfile_size] 133898
+[treeopen] top.
+@22
+top.tx.tx_clk
+top.tx.tx_rst
+top.tx.tx_e_idle[1:0]
+top.tx.fsm_state
+top.tx.tx_symbol[17:0]
+top.tx.tx_set_disp[1:0]
+top.tx.tx_disp[1:0]
+top.tx.start_send_ts
+top.tx.ts__valid
+top.tx.idle
+top.tx.ts__link__valid
+top.tx.ts__link__number[7:0]
+top.tx.$signal
+top.tx.eidle[1:0]
+top.tx.ts__lane__valid
+top.tx.ts__lane__number[4:0]
+top.tx.$signal$1
+top.tx.ts__n_fts[7:0]
+top.tx.$signal$2
+top.tx.ts__rate__reserved0
+top.tx.ts__rate__gen1
+top.tx.ts__rate__gen2
+top.tx.ts__rate__reserved1[2:0]
+top.tx.ts__rate__autonomous_change
+top.tx.ts__rate__speed_change
+top.tx.$signal$3
+top.tx.ts__ctrl__hot_reset
+top.tx.ts__ctrl__disable_link
+top.tx.ts__ctrl__loopback
+top.tx.ts__ctrl__disable_scrambling
+top.tx.ts__ctrl__compliance_receive
+top.tx.$signal$4[3:0]
+top.tx.ts__ts_id

@@ -2,8 +2,9 @@ from nmigen import *
 from nmigen.build import *
 from nmigen.hdl.ast import Part
 
-from align import SymbolSlip
-from enum import Enum
+from enum import IntEnum
+
+from .align import SymbolSlip
 
 
 __all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner"]
@@ -12,7 +13,7 @@ __all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner"]
 def K(x, y): return (1 << 8) | (y << 5) | x
 def D(x, y): return (0 << 8) | (y << 5) | x
 
-class Ctrl(Enum):
+class Ctrl(IntEnum):
     PAD = K(23, 7)
     STP = K(27, 7) # Start Transaction Layer Packet
     SKP = K(28, 0) # Skip

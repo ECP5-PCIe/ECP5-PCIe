@@ -1,6 +1,6 @@
 from nmigen import *
 from nmigen.build import *
-from serdes import K, D, Ctrl, PCIeSERDESInterface
+from .serdes import K, D, Ctrl, PCIeSERDESInterface
 
 class PCIePhy():
     """
