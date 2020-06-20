@@ -1,7 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer
-from serdes import PCIeSERDESInterface, K, Ctrl
+from .serdes import PCIeSERDESInterface, K, Ctrl
 
 
 __all__ = ["LatticeECP5PCIeSERDES"]

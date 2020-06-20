@@ -2,9 +2,9 @@ from nmigen import *
 from nmigen.build import *
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
-from utils.utils import UARTDebugger
-from ecp5_serdes import LatticeECP5PCIeSERDES
-from serdes import K, D, Ctrl, PCIeSERDESAligner
+from ecp5_pcie.utils.utils import UARTDebugger
+from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
 
 # Usage: python test_rx_tx_discrepancy.py run
 #        python test_rx_tx_discrepancy.py grab

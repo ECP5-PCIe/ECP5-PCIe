@@ -1,11 +1,11 @@
-from ecp5_serdes_broken import LatticeECP5PCIeSERDES, PCIeSERDESAligner
 from nmigen import *
 from nmigen.build import *
 from nmigen_boards import versa_ecp5_5g as FPGA
-from utils.utils import UARTDebugger, Resizer
 from nmigen_stdio.serial import AsyncSerial
-from utils.parts import PLL1Ch
-from serdes import K, D
+from ecp5_pcie.utils.utils import UARTDebugger, Resizer
+from ecp5_pcie.ecp5_serdes_broken import LatticeECP5PCIeSERDES, PCIeSERDESAligner
+from ecp5_pcie.utils.parts import PLL1Ch
+from ecp5_pcie.serdes import K, D
 
 class Test(Elaboratable):
     def elaborate(self, platform):

@@ -2,7 +2,7 @@ from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import *
 
-from serdes import *
+from .serdes import *
 from enum import Enum
 
 

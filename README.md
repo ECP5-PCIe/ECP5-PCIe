@@ -9,3 +9,9 @@ There already exists a PCIe physical layer by whitequark called [Yumewatari](htt
 - Read more of the PCIe spec and summarize relevant parts
 - Get an ECP5 device capable of PCIe
 	- Currently an adapter for the ECP5 EVN to PCIe is being built
+
+## INSTALL
+Execute `python setup.py develop` in the Gateware folder
+
+## SETUP
+https://github.com/ECP5-PCIe/ECP5-PCIe/wiki/Setup

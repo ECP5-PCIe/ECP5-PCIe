@@ -2,7 +2,7 @@ import pcie_adapter as FPGA
 from avr_test import Test as AVRTest
 from nmigen import *
 from nmigen.build import *
-from utils.parts import PLL1Ch
+from ecp5_pcie.utils.parts import PLL1Ch
 
 class Test(Elaboratable):
     def elaborate(self, platform):

@@ -31,6 +31,8 @@ class PCIePhyTX(Elaboratable):
         symbol1 = lane.tx_symbol[0: 9]
         symbol2 = lane.tx_symbol[9:18]
 
+        # Structure of a TS:
+        # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
         with m.FSM(domain="tx"):
             with m.State("IDLE"):
                 with m.If(ts.valid):

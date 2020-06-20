@@ -2,11 +2,11 @@ from nmigen import *
 from nmigen.build import *
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
-from utils.utils import UARTDebugger
-from ecp5_serdes import LatticeECP5PCIeSERDES
-from serdes import K, D, Ctrl, PCIeSERDESAligner
-from layouts import ts_layout
-from ltssm import *
+from ecp5_pcie.utils.utils import UARTDebugger
+from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
+from ecp5_pcie.layouts import ts_layout
+from ecp5_pcie.ltssm import *
 def S(x, y): return (y << 5) | x
 
 # Usage: python test_pcie_2.py run
@@ -24,8 +24,8 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2)
-        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
+        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
         m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
