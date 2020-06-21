@@ -95,11 +95,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             """
 
             # Declare a sufficiently large timer with the reset value being the time
-            timer = Signal(range(time_in_ms * clocks_per_ms + 1), reset=time_in_ms * clocks_per_ms)
+            timer = Signal(range(time_in_ms * clocks_per_ms + 1))
 
             # Count down until t=0 or or_conds is true, then jump to the next state
-            m.d.rx += timer.eq(timer - 1)
-            with m.If((timer == 0) | or_conds):
+            m.d.rx += timer.eq(timer + 1)
+            with m.If((timer == time_in_ms * clocks_per_ms) | or_conds):
+                m.d.rx += timer.eq(0)
                 m.next = next_state
             return timer
 

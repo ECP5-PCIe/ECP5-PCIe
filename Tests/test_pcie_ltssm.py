@@ -135,6 +135,7 @@ if __name__ == "__main__":
             port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
+            last_time = 0
 
             while True:
                 #while True:
@@ -180,8 +181,10 @@ if __name__ == "__main__":
                     old = data & 0xFF
                     new = (data & 0xFF00) >> 8
                     print("{:,}".format(time), end=" ")
-                    print(old, end="->")
-                    print(new)
+                    print("{:,} ns".format((time - last_time) * 8), end=" ")
+                    print(State(old).name, end="->")
+                    print(State(new).name)
+                    last_time = time
                 else:
                     def print_word(word, indent, end=""):
                         xa = word & 0b11111
