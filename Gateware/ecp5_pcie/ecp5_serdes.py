@@ -116,13 +116,16 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         # TX signals
         tx_lol   = Signal() # TX PLL Loss of Lock
         tx_lol_s = Signal()
+        tx_bus_s = Signal(len(self.tx_bus))
+        tx_bus_s_2 = Signal(len(self.tx_bus))
 
-        # Clock domain crossing for status signals
+        # Clock domain crossing for status signals and tx data
         m.submodules += [
             FFSynchronizer(rx_los, rx_los_s, o_domain="rx"),
             FFSynchronizer(rx_lol, rx_lol_s, o_domain="rx"),
             FFSynchronizer(rx_lsm, rx_lsm_s, o_domain="rx"),
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
+            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx")
         ]
 
         # Connect the signals to the lanes signals
@@ -364,7 +367,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
 
             # TX CH — data
-            **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
+            **{"o_CH0_FF_TX_D_%d" % n: tx_bus_s_2[n] for n in range(tx_bus_s_2.width)}, # Connect TX SERDES inputs to the signals
             p_CH0_ENC_BYPASS        ="0b0",
 
             # CH0 DET
@@ -376,4 +379,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         m.submodules.dcu0.attrs["CHAN"] = "CH0"
         m.submodules.dcu0.attrs["BEL"] = "X42/Y71/DCU"
+        
+        # This is somehow needed for there to be no error
+        m.d.comb += tx_bus_s_2.eq(tx_bus_s)
         return m

@@ -9,15 +9,15 @@ from .phy_tx import PCIePhyTX
 from .phy_rx import PCIePhyRX
 
 class State(Enum):
-    Detect = 0
     Detect_Quiet = 0
+    Detect = 0
     Detect_Active = 1
     Polling_Active = 2
     Polling_Active_TS = 3
     Polling_Configuration = 4
     Polling_Configuration_TS = 5
-    Configuration = 6
     Configuration_Linkwidth_Start = 6
+    Configuration = 6
     Configuration_Linkwidth_Accept = 7
     Configuration_Lanenum_Start = 8
     Configuration_Lanenum_Wait = 9
@@ -25,8 +25,8 @@ class State(Enum):
     Configuration_Complete = 11
     Configuration_Complete_TS = 12
     Configuration_Idle = 13
-    Recovery = 14
     Recovery_RcvrLock = 14
+    Recovery = 14
     Recovery_RcvrCfg = 15
     Recovery_Idle = 16
     L0 = 17
@@ -76,8 +76,20 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         # Currently its Gen 1 only
         m.d.comb += tx.ts.rate.gen1.eq(1)
 
+        
+        def reset_ts_count_and_jump(next_state):
+            """
+            Goes to the next state and resets the TS counters
 
-        # 
+            Parameters:
+                next_state:
+                    Next state of the FSM to go to
+            """
+            m.d.rx += rx_ts_count.eq(0)
+            m.d.rx += tx_ts_count.eq(0)
+            m.next = next_state
+
+
         def timeout(time_in_ms, next_state, or_conds=0):
             """
             Goes to the next state after a specified amount of time has passed
@@ -101,7 +113,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             m.d.rx += timer.eq(timer + 1)
             with m.If((timer == time_in_ms * clocks_per_ms) | or_conds):
                 m.d.rx += timer.eq(0)
-                m.next = next_state
+                reset_ts_count_and_jump(next_state)
             return timer
 
 
@@ -112,7 +124,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # The Link is now down and the TX SERDES is put into electrical idle
                 m.d.rx += status.link.up.eq(0)
-                m.d.tx += tx.eidle.eq(0b11)
+                m.d.rx += tx.eidle.eq(0b11)
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 timeout(12, State.Detect_Active, lane.rx_present)
@@ -121,11 +133,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             with m.State(State.Detect_Active):
                 m.d.rx += debug_state.eq(State.Detect_Active)
                 # Enable lane detection
-                m.d.tx += lane.det_enable.eq(1)        
+                m.d.rx += lane.det_enable.eq(1)        
 
                 with m.If(lane.det_valid):
                     # Wait until the detection result is there and disable lane detection again as soon as it is.
-                    m.d.tx += lane.det_enable.eq(0)
+                    m.d.rx += lane.det_enable.eq(0)
                     #  If a lane was detected, go to Polling.Active otherwise go back to Detect.
                     with m.If(lane.det_status):
                         m.next = State.Polling_Active
@@ -137,7 +149,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += debug_state.eq(State.Polling_Active)
 
                 # Send TS1 ordered sets with Link and Lane set to PAD
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.valid.eq(1),
                     tx.ts.ts_id.eq(0),
                     tx.ts.link.valid.eq(0),
@@ -153,7 +165,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # Count for 1024 transmitted TS's
                 with m.If(tx.start_send_ts & (tx_ts_count < 1024)):
-                    m.d.tx += tx_ts_count.eq(tx_ts_count + 1)
+                    m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
                 
                 # Wait till 1024 TS's have been transmitted. This should probably have CDC in the future.
                 with m.If(tx_ts_count >= 1024):
@@ -166,9 +178,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                         | ((rx.ts.ts_id == 0) & rx.ts.ctrl.loopback)
                         | (rx.ts.ts_id == 1))):
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
+                            
                             # If 8 consecutive TSs fitting the conditions have been received, go to Polling.Configuration.
                             with m.If(rx_ts_count == 8):
-                                m.next = State.Polling_Configuration
+                                reset_ts_count_and_jump(State.Polling_Configuration)
 
                         # Otherwise if a TS is invalid, start counting again.
                         with m.Else():
@@ -183,7 +196,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # and reset the TS counters.
                 m.d.rx += debug_state.eq(State.Polling_Configuration)
                 m.next = State.Polling_Configuration_TS
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.valid.eq(1),
                     tx.ts.ts_id.eq(1),
                     tx.ts.link.valid.eq(0),
@@ -198,9 +211,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 with m.If(tx.start_send_ts):                            # When a TS is sent,
                     with m.If(rx_ts_count == 0):                        # as long as no TSs are received,
-                        m.d.tx += tx_ts_count.eq(0)                     # reset the received TS count
+                        m.d.rx += tx_ts_count.eq(0)                     # reset the received TS count
                     with m.Else():
-                        m.d.tx += tx_ts_count.eq(tx_ts_count + 1)       # Otherwise count sent TSs
+                        m.d.rx += tx_ts_count.eq(tx_ts_count + 1)       # Otherwise count sent TSs
                 
                 with m.If(rx.ts_received):
                     # Accept TS2s with Link and Lane set to PAD.
@@ -211,7 +224,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     & ~rx.ts.link.valid & ~rx.ts.lane.valid):
                         with m.If(rx_ts_count == 8):
                             with m.If(tx_ts_count >= 16):
-                                m.next = State.Configuration_Linkwidth_Start
+                                reset_ts_count_and_jump(State.Configuration_Linkwidth_Start)
                         with m.Else():
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
 
@@ -226,7 +239,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             with m.State(State.Configuration_Linkwidth_Start):
                 m.d.rx += debug_state.eq(State.Configuration_Linkwidth_Start)
                 # Send TS1 ordered sets with Link and Lane set to PAD
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.valid.eq(1),
                     tx.ts.ts_id.eq(0),
                     tx.ts.link.valid.eq(0),
@@ -238,9 +251,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # and go to Configuration.Linkwidth.Accept
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 0)
                 & rx.ts.link.valid & ~rx.ts.lane.valid):
-                    m.d.tx += tx.ts.link.valid.eq(1)
-                    m.d.tx += tx.ts.link.number.eq(rx.ts.link.number)
-                    m.next = State.Configuration_Linkwidth_Accept
+                    m.d.rx += tx.ts.link.valid.eq(1)
+                    m.d.rx += tx.ts.link.number.eq(rx.ts.link.number)
+                    reset_ts_count_and_jump(State.Configuration_Linkwidth_Accept)
                 
                 timeout(24, State.Detect)
 
@@ -253,9 +266,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Report back that the received lane is valid.
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & rx.ts.link.valid & rx.ts.lane.valid):
                     with m.If(rx.ts.lane.number == 0):
-                        m.d.tx += tx.ts.lane.valid.eq(1)
-                        m.d.tx += tx.ts.lane.number.eq(rx.ts.lane.number)
-                        m.next = State.Configuration_Lanenum_Wait
+                        m.d.rx += tx.ts.lane.valid.eq(1)
+                        m.d.rx += tx.ts.lane.number.eq(rx.ts.lane.number)
+                        reset_ts_count_and_jump(State.Configuration_Lanenum_Wait)
                 
                 # After 2 milliseconds of invalid stuff being received or an invalid TS being received, go back.
                 timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid))
@@ -267,11 +280,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Accept TS1 Link=Upstream-Link Lane=Upstream-Lane
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & rx.ts.link.valid & rx.ts.lane.valid):
                     with m.If(rx.ts.lane.number != tx.ts.lane.number):
-                        m.next = State.Configuration_Lanenum_Accept
+                        reset_ts_count_and_jump(State.Configuration_Lanenum_Accept)
                 
                 # Accept TS2
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 1)):
-                    m.next = State.Configuration_Lanenum_Accept
+                    reset_ts_count_and_jump(State.Configuration_Lanenum_Accept)
                     
                 # After 2 milliseconds of invalid stuff being received or an invalid TS being received, go back.
                 timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid))
@@ -285,7 +298,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 1) & rx.ts.link.valid & rx.ts.lane.valid):
                     m.d.rx += consecutive.eq(0)
                     with m.If((rx.ts.link.number == tx.ts.link.number) & (rx.ts.lane.number == tx.ts.lane.number)):
-                        m.next = State.Configuration_Complete
+                        reset_ts_count_and_jump(State.Configuration_Complete)
                     with m.Else():
                         m.next = State.Detect
 
@@ -301,7 +314,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # Complete the configuration by sending TS1 packets with the configured values and request 255 fast training sequences for exiting L0s.
                 # And reset the TS counts.
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.ts_id.eq(1),
                     tx.ts.n_fts.eq(0xFF),
                     tx_ts_count.eq(0)
@@ -316,9 +329,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Start counting sent TSs after a TS has been received
                 with m.If(tx.start_send_ts):
                     with m.If(rx_ts_count == 0):
-                        m.d.tx += tx_ts_count.eq(0)
+                        m.d.rx += tx_ts_count.eq(0)
                     with m.Else():
-                        m.d.tx += tx_ts_count.eq(tx_ts_count + 1)
+                        m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
                 with m.If(rx.ts_received):
                     # Accept TS2 Link=Upstream-Link Lane=Upstream-Lane
                     # and wait for 8 consecutive ones, otherwise reset the counter
@@ -327,7 +340,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                         (rx.ts.lane.number == tx.ts.lane.number)):
                         with m.If(rx_ts_count == 8):
                             with m.If(tx_ts_count == 16):
-                                m.next = State.Configuration_Idle
+                                reset_ts_count_and_jump(State.Configuration_Idle)
                         with m.Else():
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
                     with m.Else():
@@ -341,21 +354,21 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += debug_state.eq(State.Configuration_Idle)
 
                 # Send IDL symbols
-                m.d.tx += tx.ts.valid.eq(0)
-                m.d.tx += tx.idle.eq(1)
-                m.d.tx += tx_ts_count.eq(0)
+                m.d.rx += tx.ts.valid.eq(0)
+                m.d.rx += tx.idle.eq(1)
+                m.d.rx += tx_ts_count.eq(0)
                 m.d.rx += rx_ts_count.eq(0)
 
                 # When IDL is received, wait until 8 have arrived and 16 sent after the first one has arrived.
                 with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
-                        m.d.tx += tx_idl_count.eq(0)
+                        m.d.rx += tx_idl_count.eq(0)
                     with m.Else():
-                        m.d.tx += tx_idl_count.eq(tx_idl_count + 1)
+                        m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
-                            m.d.tx += tx.idle.eq(0)
-                            m.next = State.L0
+                            m.d.rx += tx.idle.eq(0)
+                            reset_ts_count_and_jump(State.L0)
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
 
@@ -366,18 +379,18 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 timer = Signal(range(2 * clocks_per_ms + 1), reset = 2 * clocks_per_ms)
                 m.d.rx += timer.eq(timer - 1)
                 with m.If(timer == 0):
-                    m.d.tx += tx.idle.eq(0)
+                    m.d.rx += tx.idle.eq(0)
                     with m.If(status.idle_to_rlock_transitioned < 0xFF): # Set to 0xFF on transition to Recovery
-                        m.next = State.Recovery
+                        reset_ts_count_and_jump(State.Recovery)
                     with m.Else():
-                        m.next = State.Detect
+                        reset_ts_count_and_jump(State.Detect)
 
                         
             with m.State(State.Recovery_RcvrLock):
                 m.d.rx += debug_state.eq(State.Recovery_RcvrLock)
 
                 # Send TS1 ordered sets with same Link and Lane as configured
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.valid.eq(1),
                     tx.ts.ts_id.eq(0)
                 ]
@@ -388,8 +401,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     (rx.ts.lane.number == tx.ts.lane.number)):
                     m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
                 with m.If(rx_ts_count == 8):
-                    m.d.rx += rx_ts_count.eq(0)
-                    m.next = State.Recovery_RcvrCfg
+                    reset_ts_count_and_jump(State.Recovery_RcvrCfg)
 
                 # If no TSn but something else was received, reset the RX counter
                 with m.If(~rx.recv_tsn): # Not consecutive, check if this works
@@ -402,7 +414,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += debug_state.eq(State.Recovery_RcvrCfg)
 
                 # Send TS2 ordered sets with same Link and Lane as configured
-                m.d.tx += [
+                m.d.rx += [
                     tx.ts.valid.eq(1),
                     tx.ts.ts_id.eq(1)
                 ]
@@ -414,7 +426,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += last_ts.eq(rx.ts.ts_id)
                 m.d.rx += rx_recvd.eq(rx_recvd | rx.ts_received)
                 with m.If(tx.start_send_ts):
-                    m.d.tx += tx_ts_count.eq(tx_ts_count + 1)
+                    m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
                 with m.If(last_ts != rx.ts.ts_id):
                     m.d.rx += rx_ts_count.eq(0)
                 
@@ -426,7 +438,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.Else():
                     m.d.rx += rx_ts_count.eq(0)
                 with m.If((rx_ts_count == 8) & (last_ts == 1)):
-                    m.next = State.Recovery_Idle
+                    m.d.rx += last_ts.eq(0)
+                    reset_ts_count_and_jump(State.Recovery_Idle)
                 
                 # If 8 TS1s have been received and 16 TS2s sent, go back to Configuration
                 with m.If((rx_ts_count == 8) & (last_ts == 0) & (tx_ts_count == 16) & (rx.ts.rate.speed_change == 0)):
@@ -439,7 +452,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += debug_state.eq(State.Recovery_Idle)
                 
                 # Set the transmitter to send IDL symbols
-                m.d.tx += tx.idle.eq(1)
+                m.d.rx += tx.idle.eq(1)
 
                 # If two invalid lanes has been received, go back to Configuration
                 pad_cnt = Signal()
@@ -453,12 +466,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
-                        m.d.tx += tx_idl_count.eq(0)
+                        m.d.rx += tx_idl_count.eq(0)
                     with m.Else():
-                        m.d.tx += tx_idl_count.eq(tx_idl_count + 1)
+                        m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
                             m.d.rx += status.idle_to_rlock_transitioned.eq(0)
-                            m.d.tx += tx.idle.eq(0)
+                            m.d.rx += tx.idle.eq(0)
                             m.next = State.L0
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
@@ -467,7 +480,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 timer = Signal(range(2 * clocks_per_ms + 1), reset = 2 * clocks_per_ms)
                 m.d.rx += timer.eq(timer - 1)
                 with m.If(timer == 0):
-                    m.d.tx += tx.idle.eq(0)
+                    m.d.rx += tx.idle.eq(0)
                     with m.If(status.idle_to_rlock_transitioned < 0xFF):
                         m.next = State.Recovery_RcvrLock
                     with m.Else():
