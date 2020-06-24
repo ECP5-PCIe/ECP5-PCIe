@@ -77,8 +77,8 @@ class PCIePhyRX(Elaboratable):
                         m.next = "TSn-LANE-FTS"
                         m.d.rx += recv_tsn.eq(1)
                      # Ignore the comma otherwise, could be a different ordered set
-                with m.Else():
-                    m.d.rx += recv_tsn.eq(0)
+                #with m.Else():
+                #    m.d.rx += recv_tsn.eq(0)
 
             # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
             with m.State("SKP"):

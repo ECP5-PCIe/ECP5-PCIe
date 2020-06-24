@@ -1,6 +1,5 @@
 from nmigen import *
 from nmigen.back.pysim import Simulator, Delay, Settle
-from ecp5_pcie.phy_rx import PCIePhyRX
 from ecp5_pcie.phy_tx import PCIePhyTX
 from ecp5_pcie.serdes import *
 from ecp5_pcie.serdes import D, Ctrl
@@ -12,7 +11,7 @@ if __name__ == "__main__":
     m.submodules.tx = tx = PCIePhyTX(txlane)
 
     sim = Simulator(m)
-    sim.add_clock(1/125e6, domain="tx")
+    sim.add_clock(1/125e6, domain="rx")
 
 
     # Structure of a TS:
@@ -52,6 +51,7 @@ if __name__ == "__main__":
         yield tx.ts.ts_id      .eq(ts_id - 1)
         yield tx.ts.valid      .eq(1)
 
+        # Comparison output data, a working TX Phy should output this
         comparison = yield from make_stream(make_ts(link, link_valid, lane, lane_valid, n_fts, rate, ctrl, ts_id))
 
         sent = []
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         yield Settle()
 
 
-    sim.add_sync_process(process, domain="tx") # or sim.add_sync_process(process), see below
+    sim.add_sync_process(process, domain="rx") # or sim.add_sync_process(process), see below
 
     with sim.write_vcd("test.vcd", "test.gtkw", traces=sim._signal_names):
         sim.run()

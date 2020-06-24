@@ -368,6 +368,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                         m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
                             m.d.rx += tx.idle.eq(0)
+                            m.d.rx += rx_idl_count.eq(0)
+                            m.d.rx += tx_idl_count.eq(0)
                             reset_ts_count_and_jump(State.L0)
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
@@ -395,7 +397,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     tx.ts.ts_id.eq(0)
                 ]
 
-                # If a TS is received with the link and lane numbers matching the configured ones and 8 such have been received, go to Reovery.RcvrCfg
+                # If a TS is received with the link and lane numbers matching the configured ones and 8 such have been received, go to Recovery.RcvrCfg
                 with m.If(rx.ts_received & rx.ts.valid & rx.ts.link.valid & rx.ts.lane.valid &
                     (rx.ts.link.number == tx.ts.link.number) &
                     (rx.ts.lane.number == tx.ts.lane.number)):
@@ -472,6 +474,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                         with m.If(tx_idl_count >= 8):
                             m.d.rx += status.idle_to_rlock_transitioned.eq(0)
                             m.d.rx += tx.idle.eq(0)
+                            m.d.rx += rx_idl_count.eq(0)
+                            m.d.rx += tx_idl_count.eq(0)
                             m.next = State.L0
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)

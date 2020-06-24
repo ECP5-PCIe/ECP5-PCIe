@@ -33,15 +33,15 @@ class PCIePhyTX(Elaboratable):
 
         # Structure of a TS:
         # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
-        with m.FSM(domain="tx"):
+        with m.FSM(domain="rx"):
             with m.State("IDLE"):
                 with m.If(ts.valid):
                     m.d.rx += lane.tx_e_idle.eq(0b0)
                     m.next = "TSn-LANE-FTS"
                     m.d.rx += [
                         symbol1.eq(Ctrl.COM),
-                        lane.tx_set_disp[0].eq(1),
-                        lane.tx_disp[0].eq(0),
+                        #lane.tx_set_disp[0].eq(1), If the FSM is in the TX domain it works with this, in the RX domain it should be commented out, not sure why that is
+                        #lane.tx_disp[0].eq(0),
                         self.start_send_ts.eq(1)
                     ]
                     with m.If(ts.link.valid):
