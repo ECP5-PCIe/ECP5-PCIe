@@ -149,6 +149,7 @@ if __name__ == "__main__":
                 #    if port.read(1) == b'\n': break
                 if port.read(1) == b'\n': break
 
+            # The data is read into a byte array (called word) and then the relevant bits are and'ed out and right shifted.
             for x in range(CAPTURE_DEPTH):
 
                 # Outputs received TSs
