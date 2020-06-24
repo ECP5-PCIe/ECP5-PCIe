@@ -13,9 +13,14 @@ def S(x, y): return (y << 5) | x
 #        python test_pcie_2.py grab
 
 CAPTURE_DEPTH = 128
+
+# Record TS
 TS_TEST = False
+
+# Record LTSSM state transitions
 FSM_LOG = True
-#TX_TEST = False
+
+# Default mode is to record all received symbols
 
 class SERDESTestbench(Elaboratable):
     def __init__(self, tstest=False):
@@ -24,10 +29,14 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
+        # Received symbols are aligned and processed by the PCIePhyRX
+        # The PCIePhyTX sends symbols to the SERDES
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+
+        # Link Status Machine to test
         m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
 
         m.d.comb += [
@@ -35,6 +44,7 @@ class SERDESTestbench(Elaboratable):
             lane.rx_align.eq(1),
         ]
 
+        # Declare the RX and TX clock domain, most of the logic happens in the RX domain
         m.domains.rx = ClockDomain()
         m.domains.tx = ClockDomain()
         m.d.comb += [
@@ -42,11 +52,13 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("tx").eq(serdes.tx_clk),
         ]
 
+        # Clock outputs for the RX and TX clock domain
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
         m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
         m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
+        # Counters for the LEDs
         refclkcounter = Signal(32)
         m.d.sync += refclkcounter.eq(refclkcounter + 1)
         rxclkcounter = Signal(32)
@@ -54,41 +66,39 @@ class SERDESTestbench(Elaboratable):
         txclkcounter = Signal(32)
         m.d.tx += txclkcounter.eq(txclkcounter + 1)
 
+        # Can be used to count how many cycles det_status is on, currently unused
         detstatuscounter = Signal(7)
         with m.If(lane.det_valid & lane.det_status):
             m.d.tx += detstatuscounter.eq(detstatuscounter + 1)
 
-        led_att1 = platform.request("led",0)
-        led_att2 = platform.request("led",1)
-        led_sta1 = platform.request("led",2)
-        led_sta2 = platform.request("led",3)
-        led_err1 = platform.request("led",4)
-        led_err2 = platform.request("led",5)
-        led_err3 = platform.request("led",6)
-        led_err4 = platform.request("led",7)
+        leds = Cat(platform.request("led", i) for i in range(8))
+
+        # Information LEDs, first three output the clock frequency of the clock domains divided by 2^26
         m.d.comb += [
-            led_att1.eq(~(refclkcounter[25])),
-            led_att2.eq(~(serdes.lane.rx_aligned)),
-            led_sta1.eq(~(rxclkcounter[25])),
-            led_sta2.eq(~(txclkcounter[25])),
-            led_err1.eq(~(serdes.lane.rx_present)),
-            led_err2.eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
-            led_err3.eq(~(0)),#serdes.rxde0)),
-            led_err4.eq(~(ltssm.status.link.up)),#serdes.rxce0)),
+            leds[0].eq(~(refclkcounter[25])),
+            leds[2].eq(~(rxclkcounter[25])),
+            leds[3].eq(~(txclkcounter[25])),
+            leds[1].eq(~(serdes.lane.rx_aligned)),
+            leds[4].eq(~(serdes.lane.rx_present)),
+            leds[5].eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
+            leds[6].eq(~(0)),#serdes.rxde0)),
+            leds[7].eq(~(ltssm.status.link.up)),#serdes.rxce0)),
         ]
-        triggered = Signal(reset = 1)
-        #m.d.tx += triggered.eq((triggered ^ ((lane.rx_symbol[0:9] == Ctrl.EIE) | (lane.rx_symbol[9:18] == Ctrl.EIE))))
 
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
 
+        # In the default mode, there are some extra words for debugging data
         debug1 = Signal(16)
         debug2 = Signal(16)
         debug3 = Signal(16)
         debug4 = Signal(16)
+        
+        # For example data from the LTSSM
         m.d.comb += debug1.eq(ltssm.tx_ts_count)
         m.d.comb += debug2.eq(ltssm.rx_ts_count)
+        # Or data about TSs
         m.d.comb += debug3.eq(Cat(phy_rx.ts.valid, phy_rx.ts.lane.valid, phy_rx.ts.link.valid, phy_rx.ts.ts_id))
         m.d.comb += debug4.eq(1234)
 
@@ -99,6 +109,7 @@ class SERDESTestbench(Elaboratable):
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(ts.link.number, ts.link.valid, ts.lane.valid, ts.valid, ts.lane.number, ts.n_fts, ts.rate, ts.ctrl, ts.ts_id, Signal(2)), "rx") # lane.rx_present & lane.rx_locked)
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
         elif FSM_LOG:
+            # Keep track of time in 8 nanosecond increments
             time = Signal(64)
             m.d.rx += time.eq(time + 1)
             last_state = Signal(8)
@@ -106,10 +117,6 @@ class SERDESTestbench(Elaboratable):
             # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
             debug = UARTDebugger(uart, 10, CAPTURE_DEPTH, Cat(last_state, ltssm.debug_state, time), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         else:
-            #if TX_TEST:
-            #    debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(3), ltssm.debug_state), "tx") # lane.rx_present & lane.rx_locked)
-            #else:
-            #    debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(2), ltssm.debug_state), "rx", triggered) # lane.rx_present & lane.rx_locked)
             # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
             debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
         m.submodules += debug
@@ -143,6 +150,8 @@ if __name__ == "__main__":
                 if port.read(1) == b'\n': break
 
             for x in range(CAPTURE_DEPTH):
+
+                # Outputs received TSs
                 if TS_TEST:
                     # l = Link Number, L = Lane Number, v = Link Valid, V = Lane Valid, t = TS Valid, T = TS ID, n = FTS count, r = TS.rate, c = TS.ctrl, d = lane.det_status, D = lane.det_valid
                     # DdTcccccrrrrrrrrnnnnnnnnLLLLLtVvllllllll
@@ -169,6 +178,8 @@ if __name__ == "__main__":
                     print("TS ID %d" % (ts_id + 1), end= " \t")
                     print("Det Status %d" % det_status, end= " \t")
                     print("Det Valid %d" % det_valid)
+
+                # Displays the log of LTSSM state transitions
                 elif FSM_LOG:
                     # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
                     chars = port.read(10 * 2 + 1)
@@ -177,7 +188,7 @@ if __name__ == "__main__":
                     except:
                         print("err " + str(chars))
                         data = 0
-                    time = (data & 0xFFFFFFFFFFFFFFFF) >> 16
+                    time = (data & 0xFFFFFFFFFFFFFFFF0000) >> 16
                     old = data & 0xFF
                     new = (data & 0xFF00) >> 8
                     print("{:,}".format(time), end=" ")
@@ -185,13 +196,16 @@ if __name__ == "__main__":
                     print(State(old).name, end="->")
                     print(State(new).name)
                     last_time = time
+
                 else:
                     def print_word(word, indent, end=""):
                         xa = word & 0b11111
                         ya = (word & 0b11100000) >> 5
                         if word & 0x1ff == 0x1ee:
                             print("Error\t", end=end)
-                        elif True: #word & (1 <<  8):
+
+                        # Convert symbol data to a string which represents it
+                        elif True:
                             if xa == 27 and ya == 7:
                                 print("STP\t", end=end)
                                 indent = indent + 1
@@ -226,6 +240,7 @@ if __name__ == "__main__":
                                     xa, ya, word & 0xFF
                                 ), end=end)
                         return indent
+                    
                     # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
                     chars = port.read(17 * 2 + 1)
                     try:

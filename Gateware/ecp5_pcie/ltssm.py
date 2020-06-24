@@ -90,6 +90,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             m.next = next_state
 
 
+        # Timer for the timeout function
+        timer = Signal(range(64 * clocks_per_ms + 1))
+
         def timeout(time_in_ms, next_state, or_conds=0):
             """
             Goes to the next state after a specified amount of time has passed
@@ -107,7 +110,6 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             """
 
             # Declare a sufficiently large timer with the reset value being the time
-            timer = Signal(range(time_in_ms * clocks_per_ms + 1))
 
             # Count down until t=0 or or_conds is true, then jump to the next state
             m.d.rx += timer.eq(timer + 1)
@@ -167,7 +169,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(tx.start_send_ts & (tx_ts_count < 1024)):
                     m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
                 
-                # Wait till 1024 TS's have been transmitted. This should probably have CDC in the future.
+                # Wait till 1024 TS's have been transmitted.
                 with m.If(tx_ts_count >= 1024):
                     with m.If(rx.ts_received):
                         # Accept TS1 Link=PAD Lane=PAD Compliance=0
@@ -378,14 +380,16 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += status.link.up.eq(1)
 
                 # Well, wait 2 milliseconds and if nothing happens, stop transmitting idle symbols and go to Recovery or Detect.
-                timer = Signal(range(2 * clocks_per_ms + 1), reset = 2 * clocks_per_ms)
-                m.d.rx += timer.eq(timer - 1)
-                with m.If(timer == 0):
+                m.d.rx += timer.eq(timer + 1)
+                with m.If(timer == 2 * clocks_per_ms):
+                    m.d.rx += timer.eq(0)
                     m.d.rx += tx.idle.eq(0)
-                    with m.If(status.idle_to_rlock_transitioned < 0xFF): # Set to 0xFF on transition to Recovery
-                        reset_ts_count_and_jump(State.Recovery)
-                    with m.Else():
-                        reset_ts_count_and_jump(State.Detect)
+                    reset_ts_count_and_jump(State.Detect)
+                    # This will need a revision for PCIe 2.0
+                    #with m.If(status.idle_to_rlock_transitioned < 0xFF): # Set to 0xFF on transition to Recovery
+                    #    reset_ts_count_and_jump(State.Recovery)
+                    #with m.Else():
+                    #    reset_ts_count_and_jump(State.Detect)
 
                         
             with m.State(State.Recovery_RcvrLock):
