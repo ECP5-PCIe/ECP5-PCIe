@@ -13,6 +13,7 @@ class State(Enum):
     Detect = 0
     Detect_Active = 1
     Polling_Active = 2
+    Polling = 2
     Polling_Active_TS = 3
     Polling_Configuration = 4
     Polling_Configuration_TS = 5
@@ -46,9 +47,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         self.status = Record(ltssm_layout)
         self.tx = tx
         self.rx = rx
+
+        # Debug
         self.debug_state = Signal(8)
         self.rx_ts_count = Signal(range(16 + 1))
         self.tx_ts_count = Signal(range(1024 + 1))
+        self.rx_idl_count_total = Signal(32)
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Think about clock domains! (assuming RX, TX pll lock, the discrepancy is 0 on average)
         m = Module()
@@ -75,6 +79,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
         # Currently its Gen 1 only
         m.d.comb += tx.ts.rate.gen1.eq(1)
+
+        #Debugging stuff
+        with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
+            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
 
         
         def reset_ts_count_and_jump(next_state):
@@ -135,16 +143,17 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             with m.State(State.Detect_Active):
                 m.d.rx += debug_state.eq(State.Detect_Active)
                 # Enable lane detection
-                m.d.rx += lane.det_enable.eq(1)        
+                m.d.rx += lane.det_enable.eq(1)   
+                m.d.rx += tx.eidle.eq(0)     
 
                 with m.If(lane.det_valid):
                     # Wait until the detection result is there and disable lane detection again as soon as it is.
                     m.d.rx += lane.det_enable.eq(0)
                     #  If a lane was detected, go to Polling.Active otherwise go back to Detect.
-                    with m.If(lane.det_status):
-                        m.next = State.Polling_Active
+                    with m.If(lane.det_status): # (Note: currently hardwired to 1 in ecp5_serdes.py)
+                        m.next = State.Polling
                     with m.Else():
-                        m.next = State.Detect
+                        m.next = State.Detect_Quiet
             
 
             with m.State(State.Polling_Active):
@@ -159,7 +168,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     tx_ts_count.eq(0),
                 ]
                 m.d.rx += rx_ts_count.eq(0)
-                m.next = State.Polling_Active_TS
+                reset_ts_count_and_jump(State.Polling_Active_TS)
 
                 
             with m.State(State.Polling_Active_TS):
@@ -224,9 +233,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     # go to Configuration.Linkwidth.Start
                     with m.If(rx.ts.valid & (rx.ts.ts_id == 1)
                     & ~rx.ts.link.valid & ~rx.ts.lane.valid):
-                        with m.If(rx_ts_count == 8):
+                        with m.If(rx_ts_count >= 8):
                             with m.If(tx_ts_count >= 16):
-                                reset_ts_count_and_jump(State.Configuration_Linkwidth_Start)
+                                reset_ts_count_and_jump(State.Configuration)
                         with m.Else():
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
 
@@ -380,11 +389,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += status.link.up.eq(1)
 
                 # Well, wait 2 milliseconds and if nothing happens, stop transmitting idle symbols and go to Recovery or Detect.
-                m.d.rx += timer.eq(timer + 1)
-                with m.If(timer == 2 * clocks_per_ms):
-                    m.d.rx += timer.eq(0)
-                    m.d.rx += tx.idle.eq(0)
-                    reset_ts_count_and_jump(State.Detect)
+                timeout(2, State.Detect)
+                #m.d.rx += timer.eq(timer + 1)
+                #with m.If(timer == 2 * clocks_per_ms):
+                #    m.d.rx += timer.eq(0)
+                #    m.d.rx += tx.idle.eq(0)
+                #    reset_ts_count_and_jump(State.Detect)
                     # This will need a revision for PCIe 2.0
                     #with m.If(status.idle_to_rlock_transitioned < 0xFF): # Set to 0xFF on transition to Recovery
                     #    reset_ts_count_and_jump(State.Recovery)

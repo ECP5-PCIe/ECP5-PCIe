@@ -131,6 +131,8 @@ class PCIePhyRX(Elaboratable):
                 with m.If(inverted):
                     lane.rx_invert.eq(~lane.rx_invert) # Maybe it should change the disparity instead?
                     m.d.rx += ts.valid.eq(0)
+                
+                # If its not inverted, then a valid TS was received.
                 with m.Else():
                     #with m.If((ts_last == ts_current)):
                     m.d.rx += ts.eq(ts_current)

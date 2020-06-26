@@ -1,5 +1,6 @@
 from nmigen import *
 from nmigen.build import *
+from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
@@ -112,10 +113,19 @@ class SERDESTestbench(Elaboratable):
             # Keep track of time in 8 nanosecond increments
             time = Signal(64)
             m.d.rx += time.eq(time + 1)
+
+            # Real time in 10 ns ticks, doesnt drift or change in frequency as compared to the RX clock domain.
+            realtime = Signal(64)
+            m.d.sync += realtime.eq(realtime + 1)
+
+            # Real time FF sync
+            realtime_rx = Signal(64)
+            m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
+
             last_state = Signal(8)
             m.d.rx += last_state.eq(ltssm.debug_state)
-            # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
-            debug = UARTDebugger(uart, 10, CAPTURE_DEPTH, Cat(last_state, ltssm.debug_state, time), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
+            # 8o 8c 64t 64r 32i    o = old state, c = current state, t = time, r = realtime, i = idle count, preceding number is number of bits
+            debug = UARTDebugger(uart, 22, CAPTURE_DEPTH, Cat(last_state, ltssm.debug_state, time, realtime_rx, ltssm.rx_idl_count_total), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         else:
             # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
             debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
@@ -129,8 +139,8 @@ import sys
 import serial
 
 
-#import os
-#os.environ["NMIGEN_verbose"] = "Yes"
+import os
+os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":
@@ -143,11 +153,18 @@ if __name__ == "__main__":
             port.write(b"\x00")
             indent = 0
             last_time = 0
+            last_realtime = 0
 
             while True:
                 #while True:
                 #    if port.read(1) == b'\n': break
                 if port.read(1) == b'\n': break
+
+
+            # Returns selected bit range from a byte array
+            def get_bits(word, offset, count):
+                return (word & ((2 ** count - 1) << offset)) >> offset
+
 
             # The data is read into a byte array (called word) and then the relevant bits are and'ed out and right shifted.
             for x in range(CAPTURE_DEPTH):
@@ -182,21 +199,27 @@ if __name__ == "__main__":
 
                 # Displays the log of LTSSM state transitions
                 elif FSM_LOG:
-                    # oooooooo cccccccc tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt tttttttt o = old state, c = current state, t = time
-                    chars = port.read(10 * 2 + 1)
+                    # 8o 8c 64t 64r 32i    o = old state, c = current state, t = time, r = realtime, i = idle count, preceding number is number of bits
+                    chars = port.read(22 * 2 + 1)
                     try:
                         data = int(chars, 16)
                     except:
                         print("err " + str(chars))
                         data = 0
-                    time = (data & 0xFFFFFFFFFFFFFFFF0000) >> 16
-                    old = data & 0xFF
-                    new = (data & 0xFF00) >> 8
-                    print("{:,}".format(time), end=" ")
-                    print("{:,} ns".format((time - last_time) * 8), end=" ")
+                    old = get_bits(data, 0, 8)
+                    new = get_bits(data, 8, 8)
+                    time = get_bits(data, 16, 64)
+                    realtime = get_bits(data, 80, 64)
+                    idl = get_bits(data, 144, 32)
+                    print("{:{width}}".format("{:,}"    .format(realtime), width=15)                       , end=" \t")
+                    print("{:{width}}".format("{:,} ns" .format((realtime - last_realtime) * 10), width=12), end=" \t")
+                    print("{:{width}}".format("{:,}"    .format(time), width=15)                           , end=" \t")
+                    print("{:{width}}".format("{:,} ns" .format((time - last_time) * 8), width=12)         , end=" \t")
                     print(State(old).name, end="->")
-                    print(State(new).name)
+                    print(State(new).name, end=" ")
+                    print(idl)
                     last_time = time
+                    last_realtime = realtime
 
                 else:
                     def print_word(word, indent, end=""):
