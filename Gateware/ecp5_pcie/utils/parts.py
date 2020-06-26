@@ -2,7 +2,7 @@ from nmigen import *
 from nmigen.build import *
 
 
-__all__ = ["PLL", "PLL1Ch"]
+__all__ = ["PLL", "PLL1Ch", "DTR"]
 
 class PLL(Elaboratable):
     def __init__(self, clkin, clksel=Signal(shape=2, reset=2), clkout1=Signal(), clkout2=Signal(), clkout3=Signal(), clkout4=Signal(), lock=Signal(), CLKI_DIV=1, CLKFB_DIV=1, CLK1_DIV=3, CLK2_DIV=4, CLK3_DIV=5, CLK4_DIV=6):
@@ -121,4 +121,25 @@ class PLL1Ch(Elaboratable):
             )
         m = Module()
         m.submodules += pll
+        return m
+
+class DTR(Elaboratable):
+    def __init__(self, start=Signal(), temperature=Signal(6), valid=Signal()):
+        self.start = start
+        self.temperature = temperature
+        self.valid = valid
+
+    def elaborate(self, platform):
+        m = Module()
+
+        dtrout = Signal(8)
+
+        m.submodules += Instance("DTR",
+            i_STARTPULSE=self.start,
+            **{"o_DTROUT%d" % n: dtrout[n] for n in range(8)},
+            )
+        
+        m.d.comb += self.valid.eq(dtrout[7])
+        m.d.comb += self.temperature.eq(dtrout[0:6])
+
         return m

@@ -1,14 +1,14 @@
 from nmigen import *
 from nmigen.build import *
 
-from enum import Enum
+from enum import IntEnum
 
 from .serdes import K, D, Ctrl, PCIeSERDESInterface
 from .layouts import ltssm_layout
 from .phy_tx import PCIePhyTX
 from .phy_rx import PCIePhyRX
 
-class State(Enum):
+class State(IntEnum):
     Detect_Quiet = 0
     Detect = 0
     Detect_Active = 1
@@ -82,6 +82,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
         #Debugging stuff
         with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
+            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 2)
+        with m.Elif(lane.rx_symbol[0:9] == Ctrl.IDL):
+            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
+        with m.Elif(lane.rx_symbol[9:18] == Ctrl.IDL):
             m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
 
         
@@ -140,11 +144,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 timeout(12, State.Detect_Active, lane.rx_present)
 
 
-            with m.State(State.Detect_Active):
+            with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
                 m.d.rx += debug_state.eq(State.Detect_Active)
                 # Enable lane detection
-                m.d.rx += lane.det_enable.eq(1)   
-                m.d.rx += tx.eidle.eq(0)     
+                m.d.rx += lane.det_enable.eq(1)
+                m.d.rx += tx.eidle.eq(0)
 
                 with m.If(lane.det_valid):
                     # Wait until the detection result is there and disable lane detection again as soon as it is.
@@ -178,25 +182,26 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(tx.start_send_ts & (tx_ts_count < 1024)):
                     m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
                 
-                # Wait till 1024 TS's have been transmitted.
-                with m.If(tx_ts_count >= 1024):
-                    with m.If(rx.ts_received):
-                        # Accept TS1 Link=PAD Lane=PAD Compliance=0
-                        # Accept TS1 Link=PAD Lane=PAD Loopback=1
-                        # Accept TS2 Link=PAD Lane=PAD
-                        with m.If(rx.ts.valid & ~rx.ts.lane.valid & ~rx.ts.link.valid & 
-                        (((rx.ts.ts_id == 0) & ~rx.ts.ctrl.compliance_receive)
-                        | ((rx.ts.ts_id == 0) & rx.ts.ctrl.loopback)
-                        | (rx.ts.ts_id == 1))):
-                            m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
-                            
-                            # If 8 consecutive TSs fitting the conditions have been received, go to Polling.Configuration.
-                            with m.If(rx_ts_count == 8):
-                                reset_ts_count_and_jump(State.Polling_Configuration)
+                with m.If(rx.ts_received):
+                    # Accept TS1 Link=PAD Lane=PAD Compliance=0
+                    # Accept TS1 Link=PAD Lane=PAD Loopback=1
+                    # Accept TS2 Link=PAD Lane=PAD
+                    with m.If(rx.ts.valid & ~rx.ts.lane.valid & ~rx.ts.link.valid & 
+                    (((rx.ts.ts_id == 0) & ~rx.ts.ctrl.compliance_receive)
+                    | ((rx.ts.ts_id == 0) & rx.ts.ctrl.loopback)
+                    | (rx.ts.ts_id == 1))):
 
-                        # Otherwise if a TS is invalid, start counting again.
-                        with m.Else():
-                            m.d.rx += rx_ts_count.eq(0)
+                        # Prevent overflows
+                        with m.If(rx_ts_count < 8):
+                            m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
+                        
+                    # Otherwise if a TS is invalid, start counting again.
+                    with m.Elif(rx_ts_count < 8):
+                        m.d.rx += rx_ts_count.eq(0)
+
+                # If 8 consecutive TSs fitting the conditions have been received, go to Polling.Configuration.
+                with m.If((rx_ts_count >= 8) & (tx_ts_count >= 1024)):
+                        reset_ts_count_and_jump(State.Polling_Configuration)
                 
                 # And if no 8 consecutive, valid TSs have been received for 24 ms, go to Detect.
                 timeout(24, State.Detect)                               
@@ -233,21 +238,20 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     # go to Configuration.Linkwidth.Start
                     with m.If(rx.ts.valid & (rx.ts.ts_id == 1)
                     & ~rx.ts.link.valid & ~rx.ts.lane.valid):
-                        with m.If(rx_ts_count >= 8):
-                            with m.If(tx_ts_count >= 16):
-                                reset_ts_count_and_jump(State.Configuration)
-                        with m.Else():
+                        with m.If(rx_ts_count < 8):
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
-
                     # and if an invalid one comes, reset the RX TS counter.
-                    with m.Else():
-                        m.d.rx += rx_ts_count.eq(0)                     
-                
+                    with m.Elif(rx_ts_count < 8):
+                        m.d.rx += rx_ts_count.eq(0)             
+
+                with m.If((tx_ts_count >= 16) & (rx_ts_count >= 8)):
+                    reset_ts_count_and_jump(State.Configuration)
+        
                 # Otherwise go back to Detect after 48 milliseconds.
                 timeout(48, State.Detect)
 
 
-            with m.State(State.Configuration_Linkwidth_Start):
+            with m.State(State.Configuration_Linkwidth_Start): # Is missing Loopback and Disabled
                 m.d.rx += debug_state.eq(State.Configuration_Linkwidth_Start)
                 # Send TS1 ordered sets with Link and Lane set to PAD
                 m.d.rx += [
@@ -275,6 +279,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Accept TS1 Link=Upstream-Link Lane=Upstream-Lane
                 # with the lane number 0, in a x4 implementation it should be lane-dependent.
                 # Report back that the received lane is valid.
+                #with m.If(rx.ts_received):
                 with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & rx.ts.link.valid & rx.ts.lane.valid):
                     with m.If(rx.ts.lane.number == 0):
                         m.d.rx += tx.ts.lane.valid.eq(1)
