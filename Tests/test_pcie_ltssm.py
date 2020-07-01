@@ -13,12 +13,12 @@ from ecp5_pcie.utils.parts import DTR
 # Usage: python test_pcie_2.py run
 #        python test_pcie_2.py grab
 
-CAPTURE_DEPTH = 256
+CAPTURE_DEPTH = 512
 
 # Record TS
 TS_TEST = False
 
-# Record Configuration.Idle
+# Record a State
 STATE_TEST = False
 TESTING_STATE = State.Configuration_Idle
 

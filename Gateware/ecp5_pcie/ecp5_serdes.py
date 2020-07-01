@@ -124,6 +124,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             FFSynchronizer(rx_los, rx_los_s, o_domain="rx"),
             FFSynchronizer(rx_lol, rx_lol_s, o_domain="rx"),
             FFSynchronizer(rx_lsm, rx_lsm_s, o_domain="rx"),
+            
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
             FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx")
         ]
@@ -160,6 +161,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                 # test can begin 120 ns after tx_elec_idle is set high by driving the appropriate
                 # pci_det_en_ch#_c high.
                 m.d.tx += det_timer.eq(15)
+                #m.d.tx += lane.det_valid.eq(0)
                 with m.If(lane.det_enable):
                     m.next = "SET-DETECT-H"
             with m.State("SET-DETECT-H"):
@@ -196,6 +198,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             with m.State("WAIT-DONE-H"):
                 with m.If(pcie_done_s):
                     #m.d.tx += lane.det_status.eq(pcie_con_s) TODO: Figure this out
+                    #m.d.tx += lane.det_status.eq(pcie_con_s)
                     m.d.tx += lane.det_status.eq(1)
                     m.next = "DONE"
             with m.State("DONE"):

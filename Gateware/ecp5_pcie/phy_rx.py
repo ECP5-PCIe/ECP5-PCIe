@@ -24,6 +24,7 @@ class PCIePhyRX(Elaboratable):
         self.ts = Record(ts_layout)
         self.vlink = Signal(8)
         self.vlane = Signal(5)
+        self.consecutive = Signal()
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Docstring
         m = Module()
@@ -138,6 +139,9 @@ class PCIePhyRX(Elaboratable):
                     m.d.rx += ts.eq(ts_current)
                     m.d.rx += ts_last.eq(ts_current)
                     m.d.rx += self.ts_received.eq(1)
+
+                    # Consecutive TS sensing
+                    m.d.rx += self.consecutive.eq(ts_last == ts_current)
         
         with m.If(ts.link.valid):
             m.d.rx += vlink.eq(ts.link.number)
