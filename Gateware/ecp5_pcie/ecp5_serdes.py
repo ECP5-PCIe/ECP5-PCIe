@@ -1,6 +1,6 @@
 from nmigen import *
 from nmigen.build import *
-from nmigen.lib.cdc import FFSynchronizer
+from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
 from .serdes import PCIeSERDESInterface, K, Ctrl
 
 
@@ -46,6 +46,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         
         # Ratio, 1:1 means one symbol received per cycle, 1:2 means two symbols received per cycle, halving the output clock frequency.
         self.gearing = gearing
+
+        # Bit Slip
+        self.slip = Signal()
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -126,7 +129,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             FFSynchronizer(rx_lsm, rx_lsm_s, o_domain="rx"),
             
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
-            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx")
+            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx"),
         ]
 
         # Connect the signals to the lanes signals
@@ -378,6 +381,10 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             i_CH0_FFC_PCIE_CT       = pcie_ct,
             o_CH0_FFS_PCIE_DONE     = pcie_done,
             o_CH0_FFS_PCIE_CON      = pcie_con,
+
+            # Bit Slip
+            i_CH0_FFC_CDR_EN_BITSLIP= self.slip,
+            i_CH0_FFC_FB_LOOPBACK   = 3,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         m.submodules.dcu0.attrs["CHAN"] = "CH0"

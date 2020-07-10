@@ -23,7 +23,7 @@ STATE_TEST = False
 TESTING_STATE = State.Configuration_Idle
 
 # Record LTSSM state transitions
-FSM_LOG = True
+FSM_LOG = False
 
 # Default mode is to record all received symbols
 
@@ -70,6 +70,8 @@ class SERDESTestbench(Elaboratable):
         m.d.rx += rxclkcounter.eq(rxclkcounter + 1)
         txclkcounter = Signal(32)
         m.d.tx += txclkcounter.eq(txclkcounter + 1)
+
+        #m.d.rx += serdes.slip.eq(rxclkcounter[25])
         
         ## Sample temperature once a second
         #m.d.sync += dtr.start.eq(refclkcounter[25])
@@ -85,18 +87,22 @@ class SERDESTestbench(Elaboratable):
             m.d.tx += detstatuscounter.eq(detstatuscounter + 1)
 
         leds = Cat(platform.request("led", i) for i in range(8))
+        leds_alnum = Cat(platform.request("alnum_led", 0))
 
         # Information LEDs, first three output the clock frequency of the clock domains divided by 2^26
-        m.d.comb += [
-            leds[0].eq(~(refclkcounter[25])),
-            leds[2].eq(~(rxclkcounter[25])),
-            leds[3].eq(~(txclkcounter[25])),
-            leds[1].eq(~(serdes.lane.rx_aligned)),
-            leds[4].eq(~(serdes.lane.rx_present)),
-            leds[5].eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
-            leds[6].eq(~(0)),#serdes.rxde0)),
-            leds[7].eq(~(ltssm.status.link.up)),#serdes.rxce0)),
-        ]
+        #m.d.comb += [
+        #    leds[0].eq(~(refclkcounter[25])),
+        #    leds[2].eq(~(rxclkcounter[25])),
+        #    leds[3].eq(~(txclkcounter[25])),
+        #    leds[1].eq(~(serdes.lane.rx_aligned)),
+        #    leds[4].eq(~(serdes.lane.rx_present)),
+        #    leds[5].eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
+        #    leds[6].eq(~(0)),#serdes.rxde0)),
+        #    leds[7].eq(~(ltssm.status.link.up)),#serdes.rxce0)),
+        #]
+
+        m.d.comb += leds_alnum.eq(ltssm.debug_state)
+        m.d.comb += leds.eq(~ltssm.debug_state)
 
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
@@ -123,11 +129,12 @@ class SERDESTestbench(Elaboratable):
             #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
         
         elif STATE_TEST:
-            # 32t 9R 9R 9T 9T 4-
+            # 32t 9R 9R 9T 9T 2v 2-
             # t = Ticks since state was entered
             # R = RX symbol
             # T = TX symbol
-            # d = Temperature
+            # v = RX valid
+
             time_since_state = Signal(32)
             
             with m.If(ltssm.debug_state != TESTING_STATE):
@@ -138,7 +145,7 @@ class SERDESTestbench(Elaboratable):
             debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,
-                Signal(4)
+                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
                 ), "rx", ltssm.debug_state == TESTING_STATE, timeout=100 * 1000 * 1000)
 
         elif FSM_LOG:
@@ -166,7 +173,7 @@ class SERDESTestbench(Elaboratable):
         
         else:
             # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
-            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
+            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(serdes.lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), serdes.lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -284,11 +291,11 @@ if __name__ == "__main__":
 
                 # Displays symbols received during a state
                 elif STATE_TEST:
-                    # 32t 9R 9R 9T 9T 4-
+                    # 32t 9R 9R 9T 9T 2v 2-
                     # t = Ticks since state was entered
                     # R = RX symbol
                     # T = TX symbol
-                    # d = Temperature
+                    # v = RX valid
                     chars = port.read(9 * 2 + 1)
                     try:
                         data = int(chars, 16)
@@ -297,9 +304,13 @@ if __name__ == "__main__":
                         data = 0
                     time = get_bytes(data, 0, 4)
                     symbols = [get_bits(data, 32 + 9 * i, 9) for i in range(4)]
+                    valid = [get_bits(data, 32 + 9 * 4, 1), get_bits(data, 33 + 9 * 4, 1)]
                     print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
                     for i in range(len(symbols)):
-                        print_symbol(symbols[i], 0, end="\t" if i < 3 else "\n")
+                        if i < 2:
+                            print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
+                        else:
+                            print_symbol(symbols[i], 0, end="\t" if i < 3 else "\n")
 
                 # Displays the log of LTSSM state transitions
                 elif FSM_LOG:

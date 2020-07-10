@@ -87,6 +87,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
         with m.Elif(lane.rx_symbol[9:18] == Ctrl.IDL):
             m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
+        
+        m.d.rx += tx.ts.ctrl.loopback.eq(1)
 
         
         def reset_ts_count_and_jump(next_state):
@@ -266,7 +268,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Accept TS1s with Link=Upstream-Link Lane=PAD
                 # and set the link number of the TSs being sent to the received link number
                 # and go to Configuration.Linkwidth.Accept
-                with m.If(rx.ts.valid & (rx.ts.ts_id == 0)
+                with m.If(rx.consecutive & rx.ts.valid & (rx.ts.ts_id == 0)
                 & rx.ts.link.valid & ~rx.ts.lane.valid):
                     m.d.rx += tx.ts.link.valid.eq(1)
                     m.d.rx += tx.ts.link.number.eq(rx.ts.link.number)
@@ -393,7 +395,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     m.d.rx += rx_idl_count.eq(0)
 
                 # And the link should be configured!
-                m.d.rx += status.link.up.eq(1)
+                #m.d.rx += status.link.up.eq(1)
 
                 # Well, wait 2 milliseconds and if nothing happens, stop transmitting idle symbols and go to Recovery or Detect.
                 timeout(2, State.Detect)
@@ -513,6 +515,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
 
             with m.State(State.L0): # Page 297, implementation for 5 GT/s and higher lane counts missing
+                m.d.rx += debug_state.eq(State.L0)
                 # TBD
                 m.d.rx += debug_state.eq(State.L0)
                 m.d.rx += status.link.up.eq(1)
