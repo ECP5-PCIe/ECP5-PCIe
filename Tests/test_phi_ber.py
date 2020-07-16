@@ -4,7 +4,7 @@ from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
-from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.ecp5_serdes_test import LatticeECP5PCIeSERDES
 from ecp5_pcie.serdes import Ctrl
 
 # Usage: python test_phi_ber.py run
@@ -16,7 +16,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(1) # Declare SERDES module with 1:2 gearing
         lane = serdes.lane
         m.d.comb += lane.tx_e_idle.eq(0)
 
@@ -51,6 +51,7 @@ class SERDESTestbench(Elaboratable):
         fftest_a = Signal(32)
         fftest_b = Signal(32)
         fftest_a_last = Signal(32)
+        m.d.rx += serdes.slip.eq(rxclkcounter[24])
 
         #m.submodules += FFSynchronizer(fftest_a, fftest_b, o_domain="tx")
 
@@ -86,7 +87,7 @@ class SERDESTestbench(Elaboratable):
                         m.d.rx += timer.eq(0)
                         m.next = "BERTest"
                     with m.Else():
-                        m.d.rx += serdes.slip.eq(~serdes.slip)
+                        pass #m.d.rx += serdes.slip.eq(~serdes.slip)
                 
                 # Invert Lane if too long errored
                 m.d.rx += lane.rx_invert.eq(timer[16])
@@ -100,14 +101,18 @@ class SERDESTestbench(Elaboratable):
         
         m.d.rx += lane.rx_invert.eq(1)
         #m.d.rx += tx_symbol.eq(tx_symbol + 1)
-        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(tx_symbol)
+        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Ctrl.COM)#(tx_symbol)
         m.d.comb += Cat(serdes.lane.tx_symbol[9:18]).eq(Ctrl.COM)
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
         
-        debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6),
-            lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7)), "rx")
+        #debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6),
+        #    lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7)), "rx")
+        #debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6),
+        #    serdes.tx_bus_s_2[0:9], Signal(7), serdes.tx_bus_s_2[12:21], Signal(7)), "rx")
+        debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6+9), lane.rx_valid[0], Signal(6),
+            serdes.tx_bus_s_2[0:9], Signal(7+9), Signal(7)), "rx")
         m.submodules += debug
 
         return m
