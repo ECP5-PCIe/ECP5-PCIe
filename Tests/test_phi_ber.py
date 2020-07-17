@@ -53,6 +53,10 @@ class SERDESTestbench(Elaboratable):
         fftest_a_last = Signal(32)
         m.d.rx += serdes.slip.eq(rxclkcounter[24])
 
+        leds = Cat(platform.request("led", i) for i in range(8))
+        m.d.comb += leds[0].eq(~serdes.lane.rx_locked)
+        m.d.comb += leds[1].eq(~serdes.lane.rx_present)
+
         #m.submodules += FFSynchronizer(fftest_a, fftest_b, o_domain="tx")
 
         with m.FSM():

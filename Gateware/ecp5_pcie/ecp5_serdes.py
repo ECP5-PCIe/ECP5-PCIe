@@ -289,7 +289,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
             p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
             p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
-            p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on LOS
+            p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
             p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
             #p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
 
@@ -384,7 +384,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # Bit Slip
             i_CH0_FFC_CDR_EN_BITSLIP= self.slip,
-            i_CH0_FFC_FB_LOOPBACK   = 3,
+            #i_CH0_FFC_FB_LOOPBACK   = 3,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         m.submodules.dcu0.attrs["CHAN"] = "CH0"

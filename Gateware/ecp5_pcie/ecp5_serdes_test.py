@@ -218,9 +218,161 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         m.submodules.dcu0 = Instance("DCUA",
             # DCU — power management
-            p_D_MACROPDB            ="0b1",
-            p_D_IB_PWDNB            ="0b1",      # undocumented, seems to be "input buffer power down"
-            p_D_TXPLL_PWDNB         ="0b1",
+            p_D_MACROPDB = "0b1",
+            p_D_IB_PWDNB = "0b1",
+            p_D_XGE_MODE = "0b0",
+            p_D_LOW_MARK = "0d4",
+            p_D_HIGH_MARK = "0d12",
+            p_D_BUS8BIT_SEL = "0b0",
+            p_D_CDR_LOL_SET = "0b00",
+            p_D_TXPLL_PWDNB = "0b1",
+            p_D_BITCLK_LOCAL_EN = "0b1",
+            p_D_BITCLK_ND_EN = "0b0",
+            p_D_BITCLK_FROM_ND_EN = "0b0",
+            p_D_SYNC_LOCAL_EN = "0b1",
+            p_D_SYNC_ND_EN = "0b0",
+            p_CH0_UC_MODE = "0b0",
+            p_CH0_PCIE_MODE = "0b1",
+            p_CH0_RIO_MODE = "0b0",
+            p_CH0_WA_MODE = "0b0",
+            p_CH0_INVERT_RX = "0b0",
+            p_CH0_INVERT_TX = "0b0",
+            p_CH0_PRBS_SELECTION = "0b0",
+            p_CH0_GE_AN_ENABLE = "0b0",
+            p_CH0_PRBS_LOCK = "0b0",
+            p_CH0_PRBS_ENABLE = "0b0",
+            p_CH0_ENABLE_CG_ALIGN = "0b1",
+            p_CH0_TX_GEAR_MODE = "0b0",
+            p_CH0_RX_GEAR_MODE = "0b0",
+            p_CH0_PCS_DET_TIME_SEL = "0b00",
+            p_CH0_PCIE_EI_EN = "0b0",
+            p_CH0_TX_GEAR_BYPASS = "0b0",
+            p_CH0_ENC_BYPASS = "0b0",
+            p_CH0_SB_BYPASS = "0b0",
+            p_CH0_RX_SB_BYPASS = "0b0",
+            p_CH0_WA_BYPASS = "0b0",
+            p_CH0_DEC_BYPASS = "0b0",
+            p_CH0_CTC_BYPASS = "0b1",
+            p_CH0_RX_GEAR_BYPASS = "0b0",
+            p_CH0_LSM_DISABLE = "0b0",
+            p_CH0_MATCH_2_ENABLE = "0b0",
+            p_CH0_MATCH_4_ENABLE = "0b1",
+            p_CH0_MIN_IPG_CNT = "0b11",
+            p_CH0_CC_MATCH_1 = "0x1BC",
+            p_CH0_CC_MATCH_2 = "0x11C",
+            p_CH0_CC_MATCH_3 = "0x11C",
+            p_CH0_CC_MATCH_4 = "0x11C",
+            p_CH0_UDF_COMMA_MASK = "0x3ff",
+            p_CH0_UDF_COMMA_A = "0x283",
+            p_CH0_UDF_COMMA_B = "0x17C",
+            p_CH0_RX_DCO_CK_DIV = "0b000",
+            p_CH0_RCV_DCC_EN = "0b0",
+            p_CH0_TPWDNB = "0b1",
+            p_CH0_RATE_MODE_TX = "0b0",
+            p_CH0_RTERM_TX = "0d19",
+            p_CH0_TX_CM_SEL = "0b00",
+            p_CH0_TDRV_PRE_EN = "0b0",
+            p_CH0_TDRV_SLICE0_SEL = "0b01",
+            p_CH0_TDRV_SLICE1_SEL = "0b00",
+            p_CH0_TDRV_SLICE2_SEL = "0b01",
+            p_CH0_TDRV_SLICE3_SEL = "0b01",
+            p_CH0_TDRV_SLICE4_SEL = "0b01",
+            p_CH0_TDRV_SLICE5_SEL = "0b00",
+            p_CH0_TDRV_SLICE0_CUR = "0b011",
+            p_CH0_TDRV_SLICE1_CUR = "0b000",
+            p_CH0_TDRV_SLICE2_CUR = "0b11",
+            p_CH0_TDRV_SLICE3_CUR = "0b11",
+            p_CH0_TDRV_SLICE4_CUR = "0b11",
+            p_CH0_TDRV_SLICE5_CUR = "0b00",
+            p_CH0_TDRV_DAT_SEL = "0b00",
+            p_CH0_TX_DIV11_SEL = "0b0",
+            p_CH0_RPWDNB = "0b1",
+            p_CH0_RATE_MODE_RX = "0b0",
+            p_CH0_RX_DIV11_SEL = "0b0",
+            p_CH0_SEL_SD_RX_CLK = "0b1",
+            p_CH0_FF_RX_H_CLK_EN = "0b0",
+            p_CH0_FF_RX_F_CLK_DIS = "0b0",
+            p_CH0_FF_TX_H_CLK_EN = "0b0",
+            p_CH0_FF_TX_F_CLK_DIS = "0b0",
+            p_CH0_TDRV_POST_EN = "0b0",
+            p_CH0_TX_POST_SIGN = "0b0",
+            p_CH0_TX_PRE_SIGN = "0b0",
+            p_CH0_REQ_LVL_SET = "0b00",
+            p_CH0_REQ_EN = "0b1",
+            p_CH0_RTERM_RX = "0d22",
+            p_CH0_RXTERM_CM = "0b11",
+            p_CH0_PDEN_SEL = "0b1",
+            p_CH0_RXIN_CM = "0b11",
+            p_CH0_LEQ_OFFSET_SEL = "0b0",
+            p_CH0_LEQ_OFFSET_TRIM = "0b000",
+            p_CH0_RLOS_SEL = "0b1",
+            p_CH0_RX_LOS_LVL = "0b100",
+            p_CH0_RX_LOS_CEQ = "0b11",
+            p_CH0_RX_LOS_HYST_EN = "0b0",
+            p_CH0_RX_LOS_EN = "0b1",
+            p_CH0_LDR_RX2CORE_SEL = "0b0",
+            p_CH0_LDR_CORE2TX_SEL = "0b0",
+            p_D_TX_MAX_RATE = "2.5",
+            p_CH0_CDR_MAX_RATE = "2.5",
+            p_CH0_TXAMPLITUDE = "0d1000",
+            p_CH0_PROTOCOL = "PCIE",
+            p_D_ISETLOS = "0d0",
+            p_D_SETIRPOLY_AUX = "0b00",
+            p_D_SETICONST_AUX = "0b00",
+            p_D_SETIRPOLY_CH = "0b00",
+            p_D_SETICONST_CH = "0b00",
+            p_D_REQ_ISET = "0b000",
+            p_D_PD_ISET = "0b00",
+            p_D_DCO_CALIB_TIME_SEL = "0b00",
+            p_CH0_CDR_CNT4SEL = "0b00",
+            p_CH0_CDR_CNT8SEL = "0b00",
+            p_CH0_DCOATDCFG = "0b00",
+            p_CH0_DCOATDDLY = "0b00",
+            p_CH0_DCOBYPSATD = "0b1",
+            p_CH0_DCOCALDIV = "0b001",
+            p_CH0_DCOCTLGI = "0b010",
+            p_CH0_DCODISBDAVOID = "0b0",
+            p_CH0_DCOFLTDAC = "0b01",
+            p_CH0_DCOFTNRG = "0b111",
+            p_CH0_DCOIOSTUNE = "0b000",
+            p_CH0_DCOITUNE = "0b00",
+            p_CH0_DCOITUNE4LSB = "0b111",
+            p_CH0_DCOIUPDNX2 = "0b1",
+            p_CH0_DCONUOFLSB = "0b101",
+            p_CH0_DCOSCALEI = "0b00",
+            p_CH0_DCOSTARTVAL = "0b000",
+            p_CH0_DCOSTEP = "0b00",
+            p_CH0_BAND_THRESHOLD = "0d0",
+            p_CH0_AUTO_FACQ_EN = "0b1",
+            p_CH0_AUTO_CALIB_EN = "0b1",
+            p_CH0_CALIB_CK_MODE = "0b0",
+            p_CH0_REG_BAND_OFFSET = "0d0",
+            p_CH0_REG_BAND_SEL = "0d0",
+            p_CH0_REG_IDAC_SEL = "0d0",
+            p_CH0_REG_IDAC_EN = "0b0",
+
+            p_D_CMUSETISCL4VCO = "0b000",
+            p_D_CMUSETI4VCO = "0b00",
+            p_D_CMUSETINITVCT = "0b00",
+            p_D_CMUSETZGM = "0b000",
+            p_D_CMUSETP2AGM = "0b000",
+            p_D_CMUSETP1GM = "0b000",
+            p_D_CMUSETI4CPZ = "0d3",
+            p_D_CMUSETI4CPP = "0d3",
+            p_D_CMUSETICP4Z = "0b101",
+            p_D_CMUSETICP4P = "0b01",
+            p_D_CMUSETBIASI = "0b00",
+            
+            p_D_SETPLLRC = "0d1",
+            p_CH0_RX_RATE_SEL = "0d8",
+            p_D_REFCK_MODE = "0b100",
+            p_D_TX_VCO_CK_DIV = "0b000",
+            p_D_PLL_LOL_SET = "0b01",
+            p_D_RG_EN = "0b1",
+            p_D_RG_SET = "0b00",
+            #p_D_MACROPDB            ="0b1",
+            #p_D_IB_PWDNB            ="0b1",      # undocumented, seems to be "input buffer power down"
+            #p_D_TXPLL_PWDNB         ="0b1",
             i_D_FFC_MACROPDB        =1,
 
             # DCU — reset
@@ -231,41 +383,41 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # DCU — clocking
             i_D_REFCLKI             =self.ref_clk,
             o_D_FFS_PLOL            =tx_lol,
-            p_D_REFCK_MODE          ="0b100",   # 25x ref_clk
-            p_D_TX_MAX_RATE         ="2.5",     # 2.5 Gbps
-            p_D_TX_VCO_CK_DIV       ="0b000",   # DIV/1
-            p_D_BITCLK_LOCAL_EN     ="0b1",     # undocumented (PCIe sample code used)
-
-            # DCU ­— unknown
-            p_D_CMUSETBIASI         ="0b00",    # begin undocumented (PCIe sample code used)
-            p_D_CMUSETI4CPP         ="0d4",
-            p_D_CMUSETI4CPZ         ="0d3",
-            p_D_CMUSETI4VCO         ="0b00",
-            p_D_CMUSETICP4P         ="0b01",
-            p_D_CMUSETICP4Z         ="0b101",
-            p_D_CMUSETINITVCT       ="0b00",
-            p_D_CMUSETISCL4VCO      ="0b000",
-            p_D_CMUSETP1GM          ="0b000",
-            p_D_CMUSETP2AGM         ="0b000",
-            p_D_CMUSETZGM           ="0b100",
-            p_D_SETIRPOLY_AUX       ="0b10",
-            p_D_SETICONST_AUX       ="0b01",
-            p_D_SETIRPOLY_CH        ="0b10",
-            p_D_SETICONST_CH        ="0b10",
-            p_D_SETPLLRC            ="0d1",
-            p_D_RG_EN               ="0b1",
-            p_D_RG_SET              ="0b00",    # end undocumented
+            #p_D_REFCK_MODE          ="0b100",   # 25x ref_clk
+            #p_D_TX_MAX_RATE         ="2.5",     # 2.5 Gbps
+            #p_D_TX_VCO_CK_DIV       ="0b000",   # DIV/1
+            #p_D_BITCLK_LOCAL_EN     ="0b1",     # undocumented (PCIe sample code used)
+#
+            ## DCU ­— unknown
+            #p_D_CMUSETBIASI         ="0b00",    # begin undocumented (PCIe sample code used)
+            #p_D_CMUSETI4CPP         ="0d4",
+            #p_D_CMUSETI4CPZ         ="0d3",
+            #p_D_CMUSETI4VCO         ="0b00",
+            #p_D_CMUSETICP4P         ="0b01",
+            #p_D_CMUSETICP4Z         ="0b101",
+            #p_D_CMUSETINITVCT       ="0b00",
+            #p_D_CMUSETISCL4VCO      ="0b000",
+            #p_D_CMUSETP1GM          ="0b000",
+            #p_D_CMUSETP2AGM         ="0b000",
+            #p_D_CMUSETZGM           ="0b100",
+            #p_D_SETIRPOLY_AUX       ="0b10",
+            #p_D_SETICONST_AUX       ="0b01",
+            #p_D_SETIRPOLY_CH        ="0b10",
+            #p_D_SETICONST_CH        ="0b10",
+            #p_D_SETPLLRC            ="0d1",
+            #p_D_RG_EN               ="0b1",
+            #p_D_RG_SET              ="0b00",    # end undocumented
 
             # DCU — FIFOs
-            p_D_LOW_MARK            ="0d4",
-            p_D_HIGH_MARK           ="0d12",
+            #p_D_LOW_MARK            ="0d4",
+            #p_D_HIGH_MARK           ="0d12",
 
             # CH0 — protocol
-            p_CH0_PROTOCOL          ="PCIE",
-            p_CH0_PCIE_MODE         ="0b1",
-
+            #p_CH0_PROTOCOL          ="PCIE",
+            #p_CH0_PCIE_MODE         ="0b1",
+#
             # RX CH ­— power management
-            p_CH0_RPWDNB            ="0b1",
+            #p_CH0_RPWDNB            ="0b1",
             i_CH0_FFC_RXPWDNB       =1,
 
             # RX CH ­— reset
@@ -275,76 +427,95 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # RX CH ­— input
             i_CH0_FFC_SB_INV_RX     =rx_inv,
 
-            p_CH0_RTERM_RX          ="0d22",    # 50 Ohm (wizard value used, does not match datasheet)
+            #p_CH0_RTERM_RX          ="0d22",    # 50 Ohm (wizard value used, does not match datasheet)
             #p_CH0_RTERM_RX          ="0d19",    # 50 Ohm
-            p_CH0_RXIN_CM           ="0b11",    # CMFB (wizard value used)
-            p_CH0_RXTERM_CM         ="0b11",    # RX Input (wizard value used)
+            #p_CH0_RXIN_CM           ="0b11",    # CMFB (wizard value used)
+            #p_CH0_RXTERM_CM         ="0b11",    # RX Input (wizard value used)
 
             # RX CH ­— clocking
             i_CH0_RX_REFCLK         =self.ref_clk,
             o_CH0_FF_RX_PCLK        =rx_clk_o,
             i_CH0_FF_RXI_CLK        =rx_clk_i,
 
-            p_CH0_RX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
-            p_CH0_FF_RX_H_CLK_EN    = gearing_str,    # enable  DIV/2 output clock
-            p_CH0_FF_RX_F_CLK_DIS   = gearing_str,    # disable DIV/1 output clock
-
-            p_CH0_AUTO_FACQ_EN      ="0b1",     # undocumented (wizard value used)
-            p_CH0_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
-            p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
-            p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
-            p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on LOS
-            p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
+            #p_CH0_RX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
+            #p_CH0_FF_RX_H_CLK_EN    = gearing_str,    # enable  DIV/2 output clock
+            #p_CH0_FF_RX_F_CLK_DIS   = gearing_str,    # disable DIV/1 output clock
+#
+            #p_CH0_AUTO_FACQ_EN      ="0b1",     # undocumented (wizard value used)
+            #p_CH0_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
+            #p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
+            #p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
+            #p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on LOS
+            #p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
             #p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
 
-            p_CH0_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
-            p_CH0_DCOATDDLY         ="0b00",
-            p_CH0_DCOBYPSATD        ="0b1",
-            p_CH0_DCOCALDIV         ="0b010",
-            p_CH0_DCOCTLGI          ="0b011",
-            p_CH0_DCODISBDAVOID     ="0b1",
-            p_CH0_DCOFLTDAC         ="0b00",
-            p_CH0_DCOFTNRG          ="0b010",
-            p_CH0_DCOIOSTUNE        ="0b010",
-            p_CH0_DCOITUNE          ="0b00",
-            p_CH0_DCOITUNE4LSB      ="0b010",
-            p_CH0_DCOIUPDNX2        ="0b1",
-            p_CH0_DCONUOFLSB        ="0b101",
-            p_CH0_DCOSCALEI         ="0b01",
-            p_CH0_DCOSTARTVAL       ="0b010",
-            p_CH0_DCOSTEP           ="0b11",    # end undocumented
+            #p_CH0_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
+            #p_CH0_DCOATDDLY         ="0b00",
+            #p_CH0_DCOBYPSATD        ="0b1",
+            #p_CH0_DCOCALDIV         ="0b010",
+            #p_CH0_DCOCTLGI          ="0b011",
+            #p_CH0_DCODISBDAVOID     ="0b1",
+            #p_CH0_DCOFLTDAC         ="0b00",
+            #p_CH0_DCOFTNRG          ="0b010",
+            #p_CH0_DCOIOSTUNE        ="0b010",
+            #p_CH0_DCOITUNE          ="0b00",
+            #p_CH0_DCOITUNE4LSB      ="0b010",
+            #p_CH0_DCOIUPDNX2        ="0b1",
+            #p_CH0_DCONUOFLSB        ="0b101",
+            #p_CH0_DCOSCALEI         ="0b01",
+            #p_CH0_DCOSTARTVAL       ="0b010",
+            #p_CH0_DCOSTEP           ="0b11",    # end undocumented
+
+            #p_CH0_CDR_CNT4SEL = "0b00",
+            #p_CH0_CDR_CNT8SEL = "0b00",
+            #p_CH0_DCOATDCFG = "0b00",
+            #p_CH0_DCOATDDLY = "0b00",
+            #p_CH0_DCOBYPSATD = "0b1",
+            #p_CH0_DCOCALDIV = "0b001",
+            #p_CH0_DCOCTLGI = "0b010",
+            #p_CH0_DCODISBDAVOID = "0b0",
+            #p_CH0_DCOFLTDAC = "0b01",
+            #p_CH0_DCOFTNRG = "0b111",
+            #p_CH0_DCOIOSTUNE = "0b000",
+            #p_CH0_DCOITUNE = "0b00",
+            #p_CH0_DCOITUNE4LSB = "0b111",
+            #p_CH0_DCOIUPDNX2 = "0b1",
+            #p_CH0_DCONUOFLSB = "0b101",
+            #p_CH0_DCOSCALEI = "0b00",
+            #p_CH0_DCOSTARTVAL = "0b000",
+            #p_CH0_DCOSTEP = "0b00",
 
             # RX CH — link state machine
             i_CH0_FFC_SIGNAL_DETECT =rx_det,
             o_CH0_FFS_LS_SYNC_STATUS=rx_lsm,
-            p_CH0_ENABLE_CG_ALIGN   ="0b1",
-            p_CH0_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
-            p_CH0_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
-            p_CH0_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
-
-            p_CH0_MIN_IPG_CNT       ="0b11",    # minimum interpacket gap of 4
-            p_CH0_MATCH_4_ENABLE    ="0b1",     # 4 character skip matching
-            p_CH0_CC_MATCH_1        ="0x1BC",   # K28.5 Comma
-            p_CH0_CC_MATCH_2        ="0x11C",   # K28.0 Skip
-            p_CH0_CC_MATCH_3        ="0x11C",   # K28.0 Skip
-            p_CH0_CC_MATCH_4        ="0x11C",   # K28.0 Skip
+            #p_CH0_ENABLE_CG_ALIGN   ="0b1",
+            #p_CH0_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
+            #p_CH0_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
+            #p_CH0_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
+#
+            #p_CH0_MIN_IPG_CNT       ="0b11",    # minimum interpacket gap of 4
+            #p_CH0_MATCH_4_ENABLE    ="0b1",     # 4 character skip matching
+            #p_CH0_CC_MATCH_1        ="0x1BC",   # K28.5 Comma
+            #p_CH0_CC_MATCH_2        ="0x11C",   # K28.0 Skip
+            #p_CH0_CC_MATCH_3        ="0x11C",   # K28.0 Skip
+            #p_CH0_CC_MATCH_4        ="0x11C",   # K28.0 Skip
 
             # RX CH — loss of signal
             o_CH0_FFS_RLOS          =rx_los,
-            p_CH0_RLOS_SEL          ="0b1",
-            p_CH0_RX_LOS_EN         ="0b1",
-            p_CH0_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
-            p_CH0_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
+            #p_CH0_RLOS_SEL          ="0b1",
+            #p_CH0_RX_LOS_EN         ="0b1",
+            #p_CH0_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
+            #p_CH0_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
 
             # RX CH — loss of lock
             o_CH0_FFS_RLOL          =rx_lol,
 
             # RX CH — data
             **{"o_CH0_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH0_DEC_BYPASS        ="0b0", # Bypass 8b10b?
+            #p_CH0_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
-            p_CH0_TPWDNB            ="0b1",
+            #p_CH0_TPWDNB            ="0b1",
             i_CH0_FFC_TXPWDNB       =1,
 
             # TX CH ­— reset
@@ -352,33 +523,33 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # TX CH ­— output
 
-            p_CH0_TXAMPLITUDE       ="0d1000",  # 1000 mV
-            p_CH0_RTERM_TX          ="0d19",    # 50 Ohm
-
-            p_CH0_TDRV_SLICE0_CUR   ="0b011",   # 400 uA
-            p_CH0_TDRV_SLICE0_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE1_CUR   ="0b000",   # 100 uA
-            p_CH0_TDRV_SLICE1_SEL   ="0b00",    # power down
-            p_CH0_TDRV_SLICE2_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE2_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE3_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE3_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE4_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE4_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE5_CUR   ="0b00",    # 800 uA
-            p_CH0_TDRV_SLICE5_SEL   ="0b00",    # power down
+            #p_CH0_TXAMPLITUDE       ="0d1000",  # 1000 mV
+            #p_CH0_RTERM_TX          ="0d19",    # 50 Ohm
+#
+            #p_CH0_TDRV_SLICE0_CUR   ="0b011",   # 400 uA
+            #p_CH0_TDRV_SLICE0_SEL   ="0b01",    # main data
+            #p_CH0_TDRV_SLICE1_CUR   ="0b000",   # 100 uA
+            #p_CH0_TDRV_SLICE1_SEL   ="0b00",    # power down
+            #p_CH0_TDRV_SLICE2_CUR   ="0b11",    # 3200 uA
+            #p_CH0_TDRV_SLICE2_SEL   ="0b01",    # main data
+            #p_CH0_TDRV_SLICE3_CUR   ="0b11",    # 3200 uA
+            #p_CH0_TDRV_SLICE3_SEL   ="0b01",    # main data
+            #p_CH0_TDRV_SLICE4_CUR   ="0b11",    # 3200 uA
+            #p_CH0_TDRV_SLICE4_SEL   ="0b01",    # main data
+            #p_CH0_TDRV_SLICE5_CUR   ="0b00",    # 800 uA
+            #p_CH0_TDRV_SLICE5_SEL   ="0b00",    # power down
 
             # TX CH ­— clocking
             o_CH0_FF_TX_PCLK        =tx_clk_o, # Output from SERDES
             i_CH0_FF_TXI_CLK        =tx_clk_i, # Input to SERDES
 
-            p_CH0_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
-            p_CH0_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock
-            p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
+            #p_CH0_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
+            #p_CH0_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock
+            #p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
 
             # TX CH — data
             **{"o_CH0_FF_TX_D_%d" % n: tx_bus_s_2[n] for n in range(tx_bus_s_2.width)}, # Connect TX SERDES inputs to the signals
-            p_CH0_ENC_BYPASS        ="0b0",
+            #p_CH0_ENC_BYPASS        ="0b0",
 
             # CH0 DET
             i_CH0_FFC_PCIE_DET_EN   = pcie_det_en,
@@ -388,7 +559,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # Bit Slip
             i_CH0_FFC_CDR_EN_BITSLIP= self.slip,
-            i_CH0_FFC_FB_LOOPBACK   = 3,
+            #i_CH0_FFC_FB_LOOPBACK   = 3,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         #m.submodules.dcu0.attrs["CHAN"] = "CH0"
