@@ -56,8 +56,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         lane = self.lane
         m.submodules += lane # Add the PCIe Lane as a submodule
 
-        platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR, set the maximum clock frequency such that errors are given
-        platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
+        #platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR, set the maximum clock frequency such that errors are given
+        #platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
 
         # RX and TX clock input signals, these go to the SERDES.
         rx_clk_i = Signal()
@@ -291,7 +291,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
             p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
             p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
-            #p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
+            p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
 
             p_CH0_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
             p_CH0_DCOATDDLY         ="0b00",
