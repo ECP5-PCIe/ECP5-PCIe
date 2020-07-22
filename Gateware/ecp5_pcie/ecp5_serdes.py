@@ -337,7 +337,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH — data
             **{"o_CH1_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH1_DEC_BYPASS        ="0b0", # Bypass 8b10b?
+            p_CH1_DEC_BYPASS        ="0b1", # Bypass 8b10b?
 
             # TX CH — power management
             p_CH1_TPWDNB            ="0b1",
