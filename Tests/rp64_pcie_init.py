@@ -3,11 +3,12 @@ from nmigen import *
 from nmigen.build import *
 from nmigen.hdl import Memory
 from nmigen_stdio.serial import AsyncSerial
+from nmigen_boards import versa_ecp5_5g as FPGA
 
 __all__ = ["RP64PCIeInit"]
 
 class RP64PCIeInit(Elaboratable):
-    """Send 'pci init' to the RockPro64
+    """Send 'pci init' to the ROCKPro64
     Parameters
     ----------
     rx : string
@@ -34,7 +35,7 @@ class RP64PCIeInit(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        uart_pins = Record([("rx", 1), ("tx", 1)])
+        uart_pins = Record([("rx", [("i", 1)]), ("tx", [("o", 1)])])
 
         platform.add_resources([Resource("rx_rp64", 0, Pins(self.rx, dir="i"))])
         platform.add_resources([Resource("tx_rp64", 0, Pins(self.tx, dir="oe"))])
@@ -42,8 +43,8 @@ class RP64PCIeInit(Elaboratable):
         rx_pin = platform.request("rx_rp64", 0)
         tx_pin = platform.request("tx_rp64", 0)
 
-        m.d.comb += uart_pins.rx.eq(rx_pin.i)
-        m.d.comb += tx_pin.o.eq(uart_pins.tx)
+        m.d.comb += uart_pins.rx.i.eq(rx_pin.i)
+        m.d.comb += tx_pin.o.eq(uart_pins.tx.o)
 
         enable_tx = Signal()
         m.d.comb += tx_pin.oe.eq(enable_tx)
@@ -51,10 +52,11 @@ class RP64PCIeInit(Elaboratable):
         uart = AsyncSerial(divisor = int(self.clk / 1.5E6), pins = uart_pins)
         m.submodules += uart
 
+        # Consider triggering reset and then waiting a second
         # Wait for 'Hit any key to stop autoboot:', minimally till 'Channel 0: LPDDR4, 50MHz', see https://gist.github.com/ECP5-PCIe/9343ca62714691de20075866d3306750 as an example.
         # Then set enable_tx to 1 and send '\n’ repeatingly, stop doing that at the next step.
         # When => arrives over the serial, assert rdy.
-        # When init is 1, send 'pci link\n' over serial.
+        # When init is 1, send 'pci enum\n' over serial.
         # As soon as the '\n' is sent, assert init_sent such that whatever uses this module is notified of that and can act (start logging SERDES data for example).
 
         # Turn a string into a list of bytes
@@ -64,85 +66,57 @@ class RP64PCIeInit(Elaboratable):
                 result.append(ord(char))
             return result
 
-        pci_link_mem = Memory(width = 8, depth = 9, init = generate_memory('pci link\n'))
+        pci_mem = Memory(width = 8, depth = 9, init = generate_memory('pci enum\n'))
         pattern_match_mem = Memory(width = 8, depth = 19, init = generate_memory('Hit any key to stop'))
-
-        return
-
+        pci_rport = m.submodules.pci_rport = pci_mem.read_port()
 
 
+        m.d.comb += enable_tx.eq(1)
+        timer = Signal(32)
 
-
-        uart = self.uart
-        words = self.words
-        depth = self.depth
-        data = self.data
-        if(self.timeout >= 0):
-            timer = Signal(range(self.timeout + 1), reset=self.timeout)
-        word_sel = Signal(range(2 * words), reset = 2 * words - 1)
-        fifo = AsyncFIFOBuffered(width=8 * words, depth=depth, r_domain="sync", w_domain=self.data_domain)
-        m.submodules += fifo
-
-        m.d.comb += fifo.w_data.eq(data)
-
-        def sendByteFSM(byte, nextState):
-            sent = Signal(reset=0)
-            with m.If(uart.tx.rdy):
-                with m.If(sent == 0):
-                    m.d.sync += uart.tx.data.eq(byte)
-                    m.d.sync += uart.tx.ack.eq(1)
-                    m.d.sync += sent.eq(1)
-                with m.If(sent == 1):
-                    m.d.sync += uart.tx.ack.eq(0)
-                    m.d.sync += sent.eq(0)
-                    m.next = nextState
-        
         with m.FSM():
             with m.State("Wait"):
-                m.d.sync += uart.rx.ack.eq(1)
-                with m.If(uart.rx.rdy):
-                    m.d.sync += uart.rx.ack.eq(0)
-                    if self.timeout >= 0:
-                        m.d.sync += timer.eq(self.timeout)
-                    m.next = "Pre-Collect"
-            with m.State("Pre-Collect"):
-                sendByteFSM(ord('\n'), "Collect")
-            with m.State("Collect"):
-                with m.If(~fifo.w_rdy | ((timer == 0) if self.timeout >= 0 else 0)):
-                    m.d.comb += fifo.w_en.eq(0)
-                    m.next = "Transmit-1"
-                with m.Else():
-                    m.d.comb += fifo.w_en.eq(self.enable)
-                    if self.timeout >= 0:
-                        m.d.sync += timer.eq(timer - 1)
-            with m.State("Transmit-1"):
-                with m.If(fifo.r_rdy):
-                    m.d.sync += fifo.r_en.eq(1)
-                    m.next = "Transmit-2"
-                with m.Else():
+                m.d.sync += [
+                    uart.rx.ack.eq(1),
+                    uart.tx.data.eq(0x03), # Spam Ctrl C
+                    uart.tx.rdy.eq(1),
+                ]
+                with m.If(uart.rx.data == ord('=')):
+                    m.next = "uboot-1"
+
+            with m.State("uboot-1"):
+                with m.If(uart.rx.data == ord('>')):
+                    m.next = "uboot-2"
+                with m.If(~((uart.rx.data == ord('>')) | (uart.rx.data == ord('=')))):
                     m.next = "Wait"
-            with m.State("Transmit-2"):
-                m.d.sync += fifo.r_en.eq(0)
-                m.next = "TransmitByte"
-            with m.State("TransmitByte"):
-                sent = Signal(reset=0)
-                with m.If(uart.tx.rdy):
-                    with m.If(sent == 0):
-                        hexNumber = HexNumber(fifo.r_data.word_select(word_sel, 4), Signal(8))
-                        m.submodules += hexNumber
-                        m.d.sync += uart.tx.data.eq(hexNumber.ascii)
-                        m.d.sync += uart.tx.ack.eq(1)
-                        m.d.sync += sent.eq(1)
-                    with m.If(sent == 1):
-                        m.d.sync += uart.tx.ack.eq(0)
-                        m.d.sync += sent.eq(0)
-                        with m.If(word_sel == 0):
-                            m.d.sync += word_sel.eq(word_sel.reset)
-                            m.next = "Separator"
-                        with m.Else():
-                            m.d.sync += word_sel.eq(word_sel - 1)
-                with m.Else():
-                    m.d.sync += uart.tx.ack.eq(0)
-            with m.State("Separator"):
-                sendByteFSM(ord('\n'), "Transmit-1")
+
+            # Arrived at u-boot prompt
+            with m.State("uboot-2"):
+                m.d.sync += timer.eq(timer + 1)
+                with m.If(timer == 100000000):
+                    m.next = "send-pci-start" # Once a second send the sequence
+
+            with m.State("send-pci-start"):
+                m.d.sync += uart.tx.data.eq(pci_rport.data)
+                m.d.sync += pci_rport.addr.eq(0)
+                with m.If(uart.tx.ack):
+                    m.next = "send-pci-data"
+
+            with m.State("send-pci-data"):
+                m.d.sync += uart.tx.data.eq(pci_rport.data)
+                with m.If(uart.tx.ack):
+                    m.d.sync += pci_rport.addr.eq(pci_rport.addr + 1)
+                with m.If(pci_rport.addr == 8):
+                    m.next = "uboot-2"
+                    m.d.sync += timer.eq(0)
+
+
+        uart_pins = platform.request("uart", 0)
+
+        #m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
+        m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
+
         return m
+
+if (__name__ == "__main__"):
+    FPGA.VersaECP55GPlatform().build(RP64PCIeInit("B18", "A18", Signal(), Signal(), Signal()), do_program=True, nextpnr_opts="--timing-allow-fail")
