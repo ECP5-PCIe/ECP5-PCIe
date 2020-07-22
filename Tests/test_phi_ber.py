@@ -56,7 +56,7 @@ class SERDESTestbench(Elaboratable):
 
         slipcnt = Signal(5)
         lastslip = Signal()
-        m.d.rx += serdes.slip.eq(rxclkcounter[2])
+        #m.d.rx += serdes.slip.eq(rxclkcounter[2])
         m.d.sync += lastslip.eq(serdes.slip)
         with m.If(serdes.slip & ~lastslip):
             with m.If(slipcnt < (10 * gearing - 1)):

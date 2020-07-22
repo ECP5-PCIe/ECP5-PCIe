@@ -73,13 +73,13 @@ class RP64PCIeInit(Elaboratable):
 
         m.d.comb += enable_tx.eq(1)
         timer = Signal(32)
+        m.d.comb += uart.rx.rdy.eq(1)
 
         with m.FSM():
             with m.State("Wait"):
                 m.d.sync += [
-                    uart.rx.ack.eq(1),
                     uart.tx.data.eq(0x03), # Spam Ctrl C
-                    uart.tx.rdy.eq(1),
+                    uart.tx.ack.eq(1),
                 ]
                 with m.If(uart.rx.data == ord('=')):
                     m.next = "uboot-1"
@@ -87,8 +87,8 @@ class RP64PCIeInit(Elaboratable):
             with m.State("uboot-1"):
                 with m.If(uart.rx.data == ord('>')):
                     m.next = "uboot-2"
-                with m.If(~((uart.rx.data == ord('>')) | (uart.rx.data == ord('=')))):
-                    m.next = "Wait"
+                #with m.If(~((uart.rx.data == ord('>')) | (uart.rx.data == ord('=')))):
+                #    m.next = "Wait"
 
             # Arrived at u-boot prompt
             with m.State("uboot-2"):
@@ -114,7 +114,7 @@ class RP64PCIeInit(Elaboratable):
         uart_pins = platform.request("uart", 0)
 
         #m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
-        m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
+        m.d.comb += uart_pins.tx.o.eq(rx_pin.i)
 
         return m
 
