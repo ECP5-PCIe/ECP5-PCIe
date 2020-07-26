@@ -315,6 +315,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             o_CH1_FFS_LS_SYNC_STATUS=rx_lsm,
             p_CH1_ENABLE_CG_ALIGN   ="0b1",
             p_CH1_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
+            #p_CH1_UDF_COMMA_A       ="0x305",   # K28.5 inverted, encoded 
+            #p_CH1_UDF_COMMA_B       ="0xFA",   # K28.5, encoded
             p_CH1_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
             p_CH1_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
 
@@ -337,7 +339,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH — data
             **{"o_CH1_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH1_DEC_BYPASS        ="0b0", # Bypass 8b10b?
+            p_CH1_DEC_BYPASS        ="0b1", # Bypass 8b10b?
 
             # TX CH — power management
             p_CH1_TPWDNB            ="0b1",

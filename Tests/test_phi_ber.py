@@ -16,7 +16,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        gearing = 2
+        gearing = 1
 
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(gearing) # Declare SERDES module with 1:2 gearing
         lane = serdes.lane
@@ -127,7 +127,8 @@ class SERDESTestbench(Elaboratable):
         #m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Mux(commacnt == 2, Ctrl.COM, Ctrl.STP))#(tx_symbol)
         osc = Signal()
         m.d.rx += osc.eq(~osc)
-        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Mux(osc, Ctrl.COM, D(21, 5)))
+        #m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Mux(osc, Ctrl.COM, D(21, 5)))
+        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Ctrl.COM)
         m.d.comb += Cat(serdes.lane.tx_symbol[9:18]).eq(D(21, 5)) # 1010101010
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
@@ -141,7 +142,7 @@ class SERDESTestbench(Elaboratable):
         #    serdes.tx_bus_s_2[0:9], Signal(7+9), Signal(7)), "rx")
         #debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6+9), lane.rx_valid[0], Signal(6),
         #    serdes.tx_bus[0:9], Signal(7+9), Signal(7), Cat(slipcnt, lane.rx_present, lane.rx_locked, lane.rx_valid)), "rx")
-        debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:10], lane.rx_aligned, Signal(5), serdes.rx_bus[12:22], lane.rx_valid[0], Signal(4),
+        debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:10], Signal(6), serdes.rx_bus[12:22], lane.rx_valid[0], Signal(5),
             serdes.tx_bus[0:10], Signal(6), serdes.tx_bus[12:22], Signal(6), Cat(slipcnt, lane.rx_present, lane.rx_locked, lane.rx_valid)), "rx")
         m.submodules += debug
 
