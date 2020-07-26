@@ -313,7 +313,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # RX CH — link state machine
             i_CH1_FFC_SIGNAL_DETECT =rx_det,
             o_CH1_FFS_LS_SYNC_STATUS=rx_lsm,
-            p_CH1_ENABLE_CG_ALIGN   ="0b0",
+            p_CH1_ENABLE_CG_ALIGN   ="0b1",
             p_CH1_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
             p_CH1_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
             p_CH1_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
@@ -337,7 +337,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH — data
             **{"o_CH1_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH1_DEC_BYPASS        ="0b1", # Bypass 8b10b?
+            p_CH1_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
             p_CH1_TPWDNB            ="0b1",
@@ -374,7 +374,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # TX CH — data
             **{"o_CH1_FF_TX_D_%d" % n: tx_bus_s_2[n] for n in range(tx_bus_s_2.width)}, # Connect TX SERDES inputs to the signals
-            p_CH1_ENC_BYPASS        ="0b1",
+            p_CH1_ENC_BYPASS        ="0b0",
 
             # CH1 DET
             i_CH1_FFC_PCIE_DET_EN   = pcie_det_en,

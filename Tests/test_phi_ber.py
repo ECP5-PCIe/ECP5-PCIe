@@ -5,7 +5,7 @@ from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
 from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
-from ecp5_pcie.serdes import Ctrl
+from ecp5_pcie.serdes import Ctrl, D
 
 # Usage: python test_phi_ber.py run
 #        python test_phi_ber.py grab
@@ -16,7 +16,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        gearing = 1
+        gearing = 2
 
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(gearing) # Declare SERDES module with 1:2 gearing
         lane = serdes.lane
@@ -125,8 +125,10 @@ class SERDESTestbench(Elaboratable):
             m.d.sync += commacnt.eq(0)
         
         #m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Mux(commacnt == 2, Ctrl.COM, Ctrl.STP))#(tx_symbol)
-        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(0b101010101)
-        m.d.comb += Cat(serdes.lane.tx_symbol[9:18]).eq(Ctrl.COM)
+        osc = Signal()
+        m.d.rx += osc.eq(~osc)
+        m.d.comb += Cat(serdes.lane.tx_symbol[0:9]).eq(Mux(osc, Ctrl.COM, D(21, 5)))
+        m.d.comb += Cat(serdes.lane.tx_symbol[9:18]).eq(D(21, 5)) # 1010101010
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
@@ -139,8 +141,8 @@ class SERDESTestbench(Elaboratable):
         #    serdes.tx_bus_s_2[0:9], Signal(7+9), Signal(7)), "rx")
         #debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6+9), lane.rx_valid[0], Signal(6),
         #    serdes.tx_bus[0:9], Signal(7+9), Signal(7), Cat(slipcnt, lane.rx_present, lane.rx_locked, lane.rx_valid)), "rx")
-        debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:10], lane.rx_aligned, Signal(5+9), lane.rx_valid[0], Signal(6),
-            serdes.tx_bus[0:10], Signal(6+9), Signal(7), Cat(slipcnt, lane.rx_present, lane.rx_locked, lane.rx_valid)), "rx")
+        debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:10], lane.rx_aligned, Signal(5), serdes.rx_bus[12:22], lane.rx_valid[0], Signal(4),
+            serdes.tx_bus[0:10], Signal(6), serdes.tx_bus[12:22], Signal(6), Cat(slipcnt, lane.rx_present, lane.rx_locked, lane.rx_valid)), "rx")
         m.submodules += debug
 
         return m
@@ -236,12 +238,14 @@ if __name__ == "__main__":
                     print("err " + str(chars))
                     data = 0
                 print("RX:", end="\t")
-                indent = print(bin(data & 0x2FF), end=" \t")
-                indent = print(bin((data & 0x2FF0000) >> 16), end=" \t")
+                print(bin(data & 0x3FF), end=" \t")
+                print(bin((data & 0x3FF0000) >> 16), 0, end=" \t")
+                print_symbol((data & 0x3FF), 0, end=" \t")
+                print_symbol(((data & 0x3FF0000) >> 16), 0, end=" \t")
                 print("TX:", end="\t")
-                indent = print(bin((data & 0x2FF00000000) >> 32), end=" \t")
-                indent = print(bin((data & 0x2FF000000000000) >> 48), end=" \t")
-                indent = print(hex((data & 0x2FF) - old), end="\t")
-                indent = print(str((data & 0x1F0000000000000000) >> 64), end="\t")
-                indent = print(bin((data & 0xE00000000000000000) >> 69), end="\n")
-                old = data & 0x2FF
+                print(bin((data & 0x3FF00000000) >> 32), end=" \t")
+                print(bin((data & 0x3FF000000000000) >> 48), end=" \t")
+                print(hex((data & 0x3FF) - old), end="\t")
+                print(str((data & 0x1F0000000000000000) >> 64), end="\t")
+                print(bin((data & 0xE00000000000000000) >> 69), end="\n")
+                old = data & 0x3FF
