@@ -243,9 +243,13 @@ class UARTDebugger(Elaboratable):
         Input clock domain
     enable : Signal, in
         Enable sampling
+    timeout : int
+        Finish collecting even if FIFO isn't full after 'timeout' clock cycles have passed
+    running : Signal, out
+        Is high while sampling
         
     """
-    def __init__(self, uart, words, depth, data, data_domain="sync", enable=1, timeout=-1):
+    def __init__(self, uart, words, depth, data, data_domain="sync", enable=1, timeout=-1, running=Signal()):
         assert(len(data) == words * 8)
         self.uart = uart
         self.words = words
@@ -254,6 +258,7 @@ class UARTDebugger(Elaboratable):
         self.data_domain = data_domain
         self.enable = enable
         self.timeout = timeout
+        self.running = running
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -293,8 +298,10 @@ class UARTDebugger(Elaboratable):
             with m.State("Pre-Collect"):
                 sendByteFSM(ord('\n'), "Collect")
             with m.State("Collect"):
+                m.d.sync += self.running.eq(1)
                 with m.If(~fifo.w_rdy | ((timer == 0) if self.timeout >= 0 else 0)):
                     m.d.comb += fifo.w_en.eq(0)
+                    m.d.sync += self.running.eq(0)
                     m.next = "Transmit-1"
                 with m.Else():
                     m.d.comb += fifo.w_en.eq(self.enable)

@@ -7,6 +7,9 @@ from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.phy_rx import PCIePhyRX
+from ecp5_pcie.phy_tx import PCIePhyTX
+from rp64_pcie_init import RP64PCIeInit
+
 def S(x, y): return (y << 5) | x
 
 # Usage: python test_pcie_2.py run
@@ -25,6 +28,9 @@ class SERDESTestbench(Elaboratable):
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
+        m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+        m.submodules.rp64init = rp64init = RP64PCIeInit("A13", "C13", Signal(), Signal(), Signal())
+
         #lane = serdes.lane
 
         m.d.comb += [
@@ -45,16 +51,16 @@ class SERDESTestbench(Elaboratable):
         
         cntr = Signal(8)
         #m.d.tx += lane.tx_symbol.eq(Ctrl.IDL)
-        with m.FSM(domain="tx"):
-            with m.State("1"):
-                m.d.tx += lane.tx_symbol.eq(Ctrl.COM)
-                m.next = "2"
-            with m.State("2"):
-                m.d.tx += lane.tx_symbol.eq(Ctrl.SKP)
-                m.d.tx += cntr.eq(cntr + 1)
-                with m.If(cntr == 3):
-                    m.d.tx += cntr.eq(0)
-                    m.next = "1"
+        #with m.FSM(domain="tx"):
+        #    with m.State("1"):
+        #        m.d.tx += lane.tx_symbol.eq(Ctrl.COM)
+        #        m.next = "2"
+        #    with m.State("2"):
+        #        m.d.tx += lane.tx_symbol.eq(Ctrl.SKP)
+        #        m.d.tx += cntr.eq(cntr + 1)
+        #        with m.If(cntr == 3):
+        #            m.d.tx += cntr.eq(0)
+        #            m.next = "1"
 
 
 
@@ -97,16 +103,17 @@ class SERDESTestbench(Elaboratable):
         m.submodules += uart
 
 
-        m.d.rx += lane.tx_e_idle.eq(1)
-        if self.tstest:
-            # l = Link Number, L = Lane Number, v = Link Valid, V = Lane Valid, t = TS Valid, T = TS ID, n = FTS count, r = TS.rate, c = TS.ctrl, d = lane.det_status, D = lane.det_valid
-            # DdTcccccrrrrrrrrnnnnnnnnLLLLLtVvllllllll
-            debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(phy_rx.ts.link.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, phy_rx.ts.valid, phy_rx.ts.lane.number, phy_rx.ts.n_fts, phy_rx.ts.rate, phy_rx.ts.ctrl, phy_rx.ts.ts_id, lane.det_status, lane.det_valid), "rx") # lane.rx_present & lane.rx_locked)
-            #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(ts.link.number, ts.link.valid, ts.lane.valid, ts.valid, ts.lane.number, ts.n_fts, ts.rate, ts.ctrl, ts.ts_id, Signal(2)), "rx") # lane.rx_present & lane.rx_locked)
-            #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
-        else:
-            debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
+        #m.d.rx += lane.tx_e_idle.eq(1)
+        debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rx", Signal()) # lane.rx_present & lane.rx_locked)
         m.submodules += debug
+
+        m.d.sync += rp64init.init.eq(debug.running)
+        with m.If(rp64init.init_sent):
+            m.d.sync += debug.enable.eq(1)
+        with m.Elif(~debug.running):
+            m.d.sync += debug.enable.eq(0)
+        
+        m.d.comb += phy_tx.ts.valid.eq(1)
 
         return m
 

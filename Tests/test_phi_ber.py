@@ -73,6 +73,8 @@ class SERDESTestbench(Elaboratable):
         #m.submodules += FFSynchronizer(fftest_a, fftest_b, o_domain="tx")
 
         with m.FSM():
+            with m.State("test"):
+                pass
             #with m.State("Align"):
             #    m.d.rx += fftest_a.eq(~fftest_a)
             #    m.d.rx += timer.eq(timer + 1)
@@ -112,7 +114,7 @@ class SERDESTestbench(Elaboratable):
                 m.d.rx += lane.tx_disp.eq(0)
                 #m.d.rx += lane.tx_set_disp.eq(1)
                 m.d.rx += timer.eq(timer + 1)
-                m.d.rx += tx_symbol.eq(Cat(timer[0:8], 0))
+                #m.d.rx += tx_symbol.eq(Cat(timer[0:8], 0))
 
 
         

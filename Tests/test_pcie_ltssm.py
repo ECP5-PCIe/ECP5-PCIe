@@ -194,7 +194,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB2', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0

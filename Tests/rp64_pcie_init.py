@@ -129,10 +129,10 @@ class RP64PCIeInit(Elaboratable):
                     m.d.sync += self.init_sent.eq(1)
 
 
-        uart_pins = platform.request("uart", 0)
+        #uart_pins = platform.request("uart", 0)
 
         #m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
-        m.d.comb += uart_pins.tx.o.eq(rx_pin.i)
+        #m.d.comb += uart_pins.tx.o.eq(rx_pin.i)
 
         return m
 

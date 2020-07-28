@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
+from nmigen.lib.fifo import AsyncFIFO
 from .serdes import PCIeSERDESInterface, K, Ctrl
 
 
@@ -131,6 +132,12 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
             FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx"),
         ]
+
+        tx_fifo = m.submodules.tx_fifo = AsyncFIFO(width=24, depth=2, r_domain="tx", w_domain="rx")
+        m.d.comb += tx_fifo.w_data.eq(self.tx_bus)
+        m.d.comb += tx_bus_s.eq(tx_fifo.r_data)
+        m.d.comb += tx_fifo.r_en.eq(1)
+        m.d.comb += tx_fifo.w_en.eq(1)
 
         # Connect the signals to the lanes signals
         m.d.comb += [
@@ -311,7 +318,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH1_DCOSTEP           ="0b11",    # end undocumented
 
             # RX CH — link state machine
-            i_CH1_FFC_SIGNAL_DETECT =rx_det,
+            i_CH1_FFC_SIGNAL_DETECT =1,
             o_CH1_FFS_LS_SYNC_STATUS=rx_lsm,
             p_CH1_ENABLE_CG_ALIGN   ="0b1",
             p_CH1_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
@@ -334,12 +341,15 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH1_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
             p_CH1_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
 
+            p_CH1_REQ_EN            ="0b0",
+            p_CH1_RX_RATE_SEL       ="0b10",
+
             # RX CH — loss of lock
             o_CH1_FFS_RLOL          =rx_lol,
 
             # RX CH — data
             **{"o_CH1_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH1_DEC_BYPASS        ="0b1", # Bypass 8b10b?
+            p_CH1_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
             p_CH1_TPWDNB            ="0b1",
