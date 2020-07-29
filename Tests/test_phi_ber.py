@@ -130,6 +130,8 @@ class SERDESTestbench(Elaboratable):
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
+
+        m.d.sync += lane.rx_align.eq(1)
         
         #debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6),
         #    lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7)), "rx")

@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
+from nmigen.lib.fifo import AsyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
 
 
@@ -69,6 +70,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         # Connect RX and TX SERDES clock inputs to the RX clock output
         m.d.comb += rx_clk_i.eq(rx_clk_o)
         m.d.comb += tx_clk_i.eq(rx_clk_o)
+
         # Clocks exposed by this module are the clock for rx symbol input and tx symbol output, usually they should be frequency-locked but have variable phase offset.
         m.d.comb += self.rx_clk.eq(rx_clk_o)
         m.d.comb += self.tx_clk.eq(tx_clk_o)
@@ -89,7 +91,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             m.d.comb += [
                 lane.rx_symbol.eq(self.rx_bus[0:9]),
                 lane.rx_valid.eq(self.rx_bus[0:9] != K(14,7)), # SERDES outputs K14.7 when there are coding errors
-                self.tx_bus.eq(Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle))
+                self.tx_bus.eq(Cat(lane.tx_symbol[0:9], lane.tx_set_disp[0], lane.tx_disp[0], lane.tx_e_idle[0]))
             ]
         else:
             # For 1:2, the output symbols get composed from both symbols, structure of rx_data and tx_data is shown on page 8/9 of TN1261
@@ -119,8 +121,6 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         # TX signals
         tx_lol   = Signal() # TX PLL Loss of Lock
         tx_lol_s = Signal()
-        tx_bus_s = Signal(len(self.tx_bus))
-        tx_bus_s_2 = Signal(len(self.tx_bus))
 
         # Clock domain crossing for status signals and tx data
         m.submodules += [
@@ -128,8 +128,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             FFSynchronizer(rx_lol, rx_lol_s, o_domain="rx"),
             FFSynchronizer(rx_lsm, rx_lsm_s, o_domain="rx"),
             
-            FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
-            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx"),
+#            FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
+#            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx"),
         ]
 
         # Connect the signals to the lanes signals
@@ -232,11 +232,13 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_D_TX_MAX_RATE         ="2.5",     # 2.5 Gbps
             p_D_TX_VCO_CK_DIV       ="0b000",   # DIV/1
             p_D_BITCLK_LOCAL_EN     ="0b1",     # undocumented (PCIe sample code used)
+            p_D_SYNC_LOCAL_EN       ="0b1",
+            p_D_BITCLK_FROM_ND_EN   ="0b0",
 
             # DCU ­— unknown
             p_D_CMUSETBIASI         ="0b00",    # begin undocumented (PCIe sample code used)
-            p_D_CMUSETI4CPP         ="0d4",
-            p_D_CMUSETI4CPZ         ="0d3",
+            p_D_CMUSETI4CPP         ="0d3",     # 0d4 in Yumewatari
+            p_D_CMUSETI4CPZ         ="0d101",  # 0d3 in Yumewatari
             p_D_CMUSETI4VCO         ="0b00",
             p_D_CMUSETICP4P         ="0b01",
             p_D_CMUSETICP4Z         ="0b101",
@@ -244,11 +246,15 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_D_CMUSETISCL4VCO      ="0b000",
             p_D_CMUSETP1GM          ="0b000",
             p_D_CMUSETP2AGM         ="0b000",
-            p_D_CMUSETZGM           ="0b100",
-            p_D_SETIRPOLY_AUX       ="0b10",
+            #p_D_CMUSETZGM           ="0b100",
+            #p_D_SETIRPOLY_AUX       ="0b10",
+            p_D_CMUSETZGM           ="0b000",
+            p_D_SETIRPOLY_AUX       ="0b00",
             p_D_SETICONST_AUX       ="0b01",
-            p_D_SETIRPOLY_CH        ="0b10",
-            p_D_SETICONST_CH        ="0b10",
+            #p_D_SETIRPOLY_CH        ="0b10",
+            #p_D_SETICONST_CH        ="0b10",
+            p_D_SETIRPOLY_CH        ="0b00",
+            p_D_SETICONST_CH        ="0b00",
             p_D_SETPLLRC            ="0d1",
             p_D_RG_EN               ="0b1",
             p_D_RG_SET              ="0b00",    # end undocumented
@@ -271,6 +277,10 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH ­— input
             i_CH0_FFC_SB_INV_RX     =rx_inv,
+ 
+            p_CH1_REQ_EN            ="0b1",
+            p_CH1_RX_RATE_SEL       ="0d8",
+            p_CH1_REQ_LVL_SET       ="0b00",
 
             p_CH0_RTERM_RX          ="0d22",    # 50 Ohm (wizard value used, does not match datasheet)
             p_CH0_RXIN_CM           ="0b11",    # CMFB (wizard value used)
@@ -287,31 +297,45 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             p_CH0_AUTO_FACQ_EN      ="0b1",     # undocumented (wizard value used)
             p_CH0_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
+            p_CH1_BAND_THRESHOLD    ="0b00",
             p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
             p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
             p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
             p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
             p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
+ 
+            p_CH1_TXDEPRE           = "DISABLED",
+            p_CH1_TXDEPOST          = "DISABLED",
 
             p_CH0_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
             p_CH0_DCOATDDLY         ="0b00",
             p_CH0_DCOBYPSATD        ="0b1",
-            p_CH0_DCOCALDIV         ="0b010",
-            p_CH0_DCOCTLGI          ="0b011",
-            p_CH0_DCODISBDAVOID     ="0b1",
-            p_CH0_DCOFLTDAC         ="0b00",
-            p_CH0_DCOFTNRG          ="0b010",
-            p_CH0_DCOIOSTUNE        ="0b010",
+            #p_CH0_DCOCALDIV         ="0b010",
+            #p_CH0_DCOCTLGI          ="0b011",
+            #p_CH0_DCODISBDAVOID     ="0b1",
+            #p_CH0_DCOFLTDAC         ="0b00",
+            #p_CH0_DCOFTNRG          ="0b010",
+            #p_CH0_DCOIOSTUNE        ="0b010",
+            p_CH1_DCOCALDIV         ="0b001",
+            p_CH1_DCOCTLGI          ="0b010",
+            p_CH1_DCODISBDAVOID     ="0b0",
+            p_CH1_DCOFLTDAC         ="0b01",
+            p_CH1_DCOFTNRG          ="0b111",
+            p_CH1_DCOIOSTUNE        ="0b000",
             p_CH0_DCOITUNE          ="0b00",
-            p_CH0_DCOITUNE4LSB      ="0b010",
+            #p_CH0_DCOITUNE4LSB      ="0b010",
+            p_CH1_DCOITUNE4LSB      ="0b111",
             p_CH0_DCOIUPDNX2        ="0b1",
             p_CH0_DCONUOFLSB        ="0b101",
-            p_CH0_DCOSCALEI         ="0b01",
-            p_CH0_DCOSTARTVAL       ="0b010",
-            p_CH0_DCOSTEP           ="0b11",    # end undocumented
+            #p_CH0_DCOSCALEI         ="0b01",
+            #p_CH0_DCOSTARTVAL       ="0b010",
+            #p_CH0_DCOSTEP           ="0b11",    # end undocumented
+            p_CH1_DCOSCALEI         ="0b00",
+            p_CH1_DCOSTARTVAL       ="0b000",
+            p_CH1_DCOSTEP           ="0b00",    # end undocumented
 
             # RX CH — link state machine
-            i_CH0_FFC_SIGNAL_DETECT =rx_det,
+            i_CH0_FFC_SIGNAL_DETECT =rx_det,    # WARNING: If 0, then no symbol lock happens
             o_CH0_FFS_LS_SYNC_STATUS=rx_lsm,
             p_CH0_ENABLE_CG_ALIGN   ="0b1",
             p_CH0_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
@@ -331,6 +355,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_RX_LOS_EN         ="0b1",
             p_CH0_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
             p_CH0_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
+            p_CH1_RX_LOS_HYST_EN    ="0b0",
 
             # RX CH — loss of lock
             o_CH0_FFS_RLOL          =rx_lol,
@@ -340,7 +365,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
-            p_CH0_TPWDNB            ="0b1",
+            #p_CH0_TPWDNB            ="0b1",
+            p_CH0_TPWDNB            ="0b0",
             i_CH0_FFC_TXPWDNB       =1,
 
             # TX CH ­— reset
@@ -373,12 +399,12 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
 
             # TX CH — data
-            **{"o_CH0_FF_TX_D_%d" % n: tx_bus_s_2[n] for n in range(tx_bus_s_2.width)}, # Connect TX SERDES inputs to the signals
+            **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
             p_CH0_ENC_BYPASS        ="0b0",
 
             # CH0 DET
-            i_CH0_FFC_PCIE_DET_EN   = pcie_det_en,
-            i_CH0_FFC_PCIE_CT       = pcie_ct,
+            i_CH0_FFC_PCIE_DET_EN   = 0, #pcie_det_en,
+            i_CH0_FFC_PCIE_CT       = 0, #pcie_ct,
             o_CH0_FFS_PCIE_DONE     = pcie_done,
             o_CH0_FFS_PCIE_CON      = pcie_con,
 
@@ -389,7 +415,5 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
         m.submodules.dcu0.attrs["CHAN"] = "CH0"
         m.submodules.dcu0.attrs["BEL"] = "X42/Y71/DCU"
-        
-        # This is somehow needed for there to be no error
-        m.d.comb += tx_bus_s_2.eq(tx_bus_s)
+
         return m

@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.hdl.ast import Part
+from nmigen.lib.fifo import AsyncFIFOBuffered
 
 from enum import IntEnum
 
@@ -103,8 +104,7 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_status   = Signal()
     
     def rx_has_symbol(self, symbol):
-        has = True
-        s = "1234567890ABDEFGHIJKLMNOPQ"
+        has = False
         for i in range(self.ratio):
             has |= self.rx_symbol[i * 9 : i * 9 + 9] == symbol
         return has
@@ -131,11 +131,6 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         self.rx_symbol    = Signal(lane.ratio * 9)
         self.rx_valid     = Signal(lane.ratio)
 
-        self.tx_symbol    = lane.tx_symbol
-        self.tx_set_disp  = lane.tx_set_disp
-        self.tx_disp      = lane.tx_disp
-        self.tx_e_idle    = lane.tx_e_idle
-
         self.det_enable   = lane.det_enable
         self.det_valid    = lane.det_valid
         self.det_status   = lane.det_status
@@ -144,6 +139,13 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
+
+        # Do TX CDC
+        tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=3, r_domain="tx", w_domain="rx")
+        m.d.comb += tx_fifo.w_data.eq(Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle))
+        m.d.comb += Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle).eq(tx_fifo.r_data)
+        m.d.comb += tx_fifo.r_en.eq(1)
+        m.d.comb += tx_fifo.w_en.eq(1)
 
         self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio, comma=Cat(Ctrl.COM, 1))
         m.submodules += self.slip
