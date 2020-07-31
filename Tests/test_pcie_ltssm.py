@@ -185,7 +185,7 @@ import serial
 
 
 import os
-os.environ["NMIGEN_verbose"] = "Yes"
+#os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":

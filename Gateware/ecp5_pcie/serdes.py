@@ -131,6 +131,11 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         self.rx_symbol    = Signal(lane.ratio * 9)
         self.rx_valid     = Signal(lane.ratio)
 
+        self.tx_symbol    = Signal(lane.ratio * 9)
+        self.tx_set_disp  = Signal(lane.ratio)
+        self.tx_disp      = Signal(lane.ratio)
+        self.tx_e_idle    = Signal(lane.ratio)
+
         self.det_enable   = lane.det_enable
         self.det_valid    = lane.det_valid
         self.det_status   = lane.det_status
@@ -142,8 +147,8 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
         # Do TX CDC
         tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=3, r_domain="tx", w_domain="rx")
-        m.d.comb += tx_fifo.w_data.eq(Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle))
-        m.d.comb += Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle).eq(tx_fifo.r_data)
+        m.d.comb += tx_fifo.w_data.eq(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
+        m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(tx_fifo.r_data)
         m.d.comb += tx_fifo.r_en.eq(1)
         m.d.comb += tx_fifo.w_en.eq(1)
 
