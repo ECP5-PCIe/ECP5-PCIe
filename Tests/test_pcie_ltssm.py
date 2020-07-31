@@ -37,20 +37,21 @@ class SERDESTestbench(Elaboratable):
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
-        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
+        #m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
+        lane = serdes.lane # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
         m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
         # Link Status Machine to test
         #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        #m.d.comb += [
-        #    phy_tx.ts.eq(0),
-        #    phy_tx.ts.valid.eq(1),
-        #    phy_tx.ts.rate.eq(1),
-        #    phy_tx.ts.ctrl.eq(0)
-        #]
+        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_txfake, phy_rx)
+        m.d.comb += [
+            phy_tx.ts.eq(0),
+            phy_tx.ts.valid.eq(1),
+            phy_tx.ts.rate.eq(1),
+            phy_tx.ts.ctrl.eq(0)
+        ]
 
         m.d.comb += [
             #lane.rx_invert.eq(0),

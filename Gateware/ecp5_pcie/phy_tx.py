@@ -31,12 +31,12 @@ class PCIePhyTX(Elaboratable):
         symbol1 = lane.tx_symbol[0: 9]
         symbol2 = lane.tx_symbol[9:18]
 
-        skp_counter = Signal(range(1538))
+        skp_counter = Signal(range(769))
         skp_accumulator = Signal(4)
         
-        # Increase SKP accumulator once counter reaches 1300 (SKP between 1180 and 1538 symbol times)
+        # Increase SKP accumulator once counter reaches 650 (SKP between 1180 and 1538 symbol times, here 1300)
         m.d.rx += skp_counter.eq(skp_counter + 1)
-        with m.If(skp_counter == 1300):
+        with m.If(skp_counter == 650):
             m.d.rx += skp_counter.eq(0)
             with m.If(skp_accumulator < 15):
                 m.d.rx += skp_accumulator.eq(skp_accumulator + 1)
