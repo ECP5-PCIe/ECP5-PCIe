@@ -2,18 +2,20 @@ import itertools
 from nmigen import *
 from nmigen.build import *
 from nmigen.hdl import Memory
+from nmigen.hdl.ast import Rose, Fell
 from nmigen_stdio.serial import AsyncSerial
 from nmigen_boards import versa_ecp5_5g as FPGA
 
 __all__ = ["RP64PCIeInit"]
 
 class RP64PCIeInit(Elaboratable):
-    """Send 'pci init' to the ROCKPro64
+    """Send 'pci init' to the ROCKPro64 (RP64), start it before uploading anything to the ECP5, otherwise it wont boot. Connect a ground pin from the ECP5 to pin 6 on the RP64 Raspberry Pi (RPi)-like header
     Parameters
     ----------
     rx : string
+        RX resource name, connect to pin 8 on the RP64 RPi-like header
     tx : string
-        RX and TX resource names
+        TX resource name, connect to pin 10 on the RP64 RPi-like header
     rdy : Signal, out
         On when it is in the bootloader
     init : Signal, in
@@ -35,8 +37,10 @@ class RP64PCIeInit(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
+        # UART pins for the AsyncSerial, is needed for doing output enable
         uart_pins = Record([("rx", [("i", 1)]), ("tx", [("o", 1)])])
 
+        # Add the UART resources of the ROCKPro64
         platform.add_resources([Resource("rx_rp64", 0, Pins(self.rx, dir="i"))])
         platform.add_resources([Resource("tx_rp64", 0, Pins(self.tx, dir="oe"))])
 
@@ -46,18 +50,18 @@ class RP64PCIeInit(Elaboratable):
         m.d.comb += uart_pins.rx.i.eq(rx_pin.i)
         m.d.comb += tx_pin.o.eq(uart_pins.tx.o)
 
+        # ROCKPro64 refuses to boot if this is high
         enable_tx = Signal()
         m.d.comb += tx_pin.oe.eq(enable_tx)
 
+        # 1.5 Megabaud UART to the ROCKPro64
         uart = AsyncSerial(divisor = int(self.clk / 1.5E6), pins = uart_pins)
         m.submodules += uart
 
-        # Consider triggering reset and then waiting a second
-        # Wait for 'Hit any key to stop autoboot:', minimally till 'Channel 0: LPDDR4, 50MHz', see https://gist.github.com/ECP5-PCIe/9343ca62714691de20075866d3306750 as an example.
-        # Then set enable_tx to 1 and send '\n’ repeatingly, stop doing that at the next step.
-        # When => arrives over the serial, assert rdy.
-        # When init is 1, send 'pci enum\n' over serial.
-        # As soon as the '\n' is sent, assert init_sent such that whatever uses this module is notified of that and can act (start logging SERDES data for example).
+
+        # Send 0x03 (Ctrl C) until the u-boot prompt appears (might take quite a while because apparently it seems to try to connect to the network interface for a long time)
+        # Send 'pci enum' once '=>' is received and init is asserted
+        # Set init_sent to high for 1 cycle after '\n' has been sent
 
         # Turn a string into a list of bytes
         def generate_memory(data_string):
@@ -66,57 +70,76 @@ class RP64PCIeInit(Elaboratable):
                 result.append(ord(char))
             return result
 
-        pci_mem = Memory(width = 8, depth = 9, init = generate_memory('pci enum\n'))
-        pattern_match_mem = Memory(width = 8, depth = 19, init = generate_memory('Hit any key to stop'))
+        # Command to send. Don't forget to change depth when changing this command.
+        depth = 10
+        pci_mem = Memory(width = 8, depth = depth, init = generate_memory(' pci enum\n'))
         pci_rport = m.submodules.pci_rport = pci_mem.read_port()
 
-
+        # Hardwired to 1, since boot is not yet controlled
         m.d.comb += enable_tx.eq(1)
-        timer = Signal(32)
+
+        # We can always accept data
+        m.d.comb += uart.rx.ack.eq(1)
 
         with m.FSM():
             with m.State("Wait"):
                 m.d.sync += [
-                    uart.rx.ack.eq(1),
                     uart.tx.data.eq(0x03), # Spam Ctrl C
-                    uart.tx.rdy.eq(1),
+                    uart.tx.ack.eq(1),
                 ]
+
+                # Wait for '=>'
                 with m.If(uart.rx.data == ord('=')):
                     m.next = "uboot-1"
 
             with m.State("uboot-1"):
+                m.d.sync += self.init_sent.eq(0)
                 with m.If(uart.rx.data == ord('>')):
                     m.next = "uboot-2"
-                with m.If(~((uart.rx.data == ord('>')) | (uart.rx.data == ord('=')))):
-                    m.next = "Wait"
 
-            # Arrived at u-boot prompt
+            # Arrived at u-boot prompt, ready to sent, waiting for init signal
             with m.State("uboot-2"):
-                m.d.sync += timer.eq(timer + 1)
-                with m.If(timer == 100000000):
-                    m.next = "send-pci-start" # Once a second send the sequence
+                m.d.sync += self.rdy.eq(1)
+                with m.If(self.init):
+                    m.next = "send-pci-start"
 
+            # Go! Set the UART data to what the memory outputs.
             with m.State("send-pci-start"):
-                m.d.sync += uart.tx.data.eq(pci_rport.data)
-                m.d.sync += pci_rport.addr.eq(0)
-                with m.If(uart.tx.ack):
+                m.d.sync += [
+                    self.rdy.eq(0),
+                    uart.tx.data.eq(pci_rport.data),
+                    pci_rport.addr.eq(0),
+                ]
+
+                # Once the TX is ready, send data
+                with m.If(uart.tx.rdy):
                     m.next = "send-pci-data"
 
             with m.State("send-pci-data"):
                 m.d.sync += uart.tx.data.eq(pci_rport.data)
-                with m.If(uart.tx.ack):
+                m.d.sync += uart.tx.ack.eq(uart.tx.rdy)
+
+                # When the TX stops being ready, set the next byte. Doesn't work with 'Rose'.
+                with m.If(Fell(uart.tx.rdy)):
                     m.d.sync += pci_rport.addr.eq(pci_rport.addr + 1)
-                with m.If(pci_rport.addr == 8):
-                    m.next = "uboot-2"
-                    m.d.sync += timer.eq(0)
+
+                # Once all data has been sent, go back to waiting for '>' and strobe init_sent.
+                with m.If((pci_rport.addr == depth - 1)):
+                    m.next = "uboot-1"
+                    m.d.sync += self.init_sent.eq(1)
 
 
         uart_pins = platform.request("uart", 0)
 
         #m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
-        m.d.comb += uart_pins.tx.o.eq(tx_pin.o)
+        m.d.comb += uart_pins.tx.o.eq(rx_pin.i)
 
         return m
 
+
 if (__name__ == "__main__"):
-    FPGA.VersaECP55GPlatform().build(RP64PCIeInit("B18", "A18", Signal(), Signal(), Signal()), do_program=True, nextpnr_opts="--timing-allow-fail")
+    # Sends 'pci enum' in a loop
+    # GND: X4 pin 2 -> RP64 RPi-like header pin 6 
+    # RX : X4 pin 4 -> RP64 RPi-like header pin 8
+    # TX : X4 pin 6 -> RP64 RPi-like header pin 10
+    FPGA.VersaECP55GPlatform().build(RP64PCIeInit("A13", "C13", Signal(), 1, Signal()), do_program=True, nextpnr_opts="--timing-allow-fail")

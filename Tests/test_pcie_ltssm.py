@@ -5,7 +5,7 @@ from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
 from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
-from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
+from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.ltssm import *
 from ecp5_pcie.utils.parts import DTR
@@ -40,9 +40,22 @@ class SERDESTestbench(Elaboratable):
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+        m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
         # Link Status Machine to test
+        #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
         m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
+        #m.d.comb += [
+        #    phy_tx.ts.eq(0),
+        #    phy_tx.ts.valid.eq(1),
+        #    phy_tx.ts.rate.eq(1),
+        #    phy_tx.ts.ctrl.eq(0)
+        #]
+
+        m.d.comb += [
+            #lane.rx_invert.eq(0),
+            serdes.lane.rx_align.eq(1),
+        ]
 
         m.d.comb += [
             #lane.rx_invert.eq(0),
@@ -194,7 +207,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB2', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0

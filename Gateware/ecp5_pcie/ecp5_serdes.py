@@ -69,7 +69,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         # Connect RX and TX SERDES clock inputs to the RX clock output
         m.d.comb += rx_clk_i.eq(rx_clk_o)
-        m.d.comb += tx_clk_i.eq(rx_clk_o)
+        m.d.comb += tx_clk_i.eq(tx_clk_o)
 
         # Clocks exposed by this module are the clock for rx symbol input and tx symbol output, usually they should be frequency-locked but have variable phase offset.
         m.d.comb += self.rx_clk.eq(rx_clk_o)
@@ -301,8 +301,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
             p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
             p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
-            p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
-            p_CH0_CTC_BYPASS        ="0b1",     # bypass CTC FIFO
+            p_CH0_SEL_SD_RX_CLK     ="0b0",     # FIFO driven by recovered clock
+            p_CH0_CTC_BYPASS        ="0b0",     # bypass CTC FIFO
  
             p_CH1_TXDEPRE           = "DISABLED",
             p_CH1_TXDEPOST          = "DISABLED",

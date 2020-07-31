@@ -31,11 +31,32 @@ class PCIePhyTX(Elaboratable):
         symbol1 = lane.tx_symbol[0: 9]
         symbol2 = lane.tx_symbol[9:18]
 
+        skp_counter = Signal(range(1538))
+        skp_accumulator = Signal(4)
+        
+        # Increase SKP accumulator once counter reaches 1300 (SKP between 1180 and 1538 symbol times)
+        m.d.rx += skp_counter.eq(skp_counter + 1)
+        with m.If(skp_counter == 1300):
+            m.d.rx += skp_counter.eq(0)
+            with m.If(skp_accumulator < 15):
+                m.d.rx += skp_accumulator.eq(skp_accumulator + 1)
+
         # Structure of a TS:
         # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
         with m.FSM(domain="rx"):
+
             with m.State("IDLE"):
-                with m.If(ts.valid):
+
+                # Send SKP ordered sets when the accumulator is above 0
+                with m.If(skp_accumulator > 0):
+                    m.d.rx += [
+                        symbol1.eq(Ctrl.COM),
+                        symbol2.eq(Ctrl.SKP),
+                        skp_accumulator.eq(skp_accumulator - 1),
+                    ]
+                    m.next = "SKP-ORDERED-SET"
+
+                with m.Elif(ts.valid):
                     m.d.rx += lane.tx_e_idle.eq(0b0)
                     m.next = "TSn-LANE-FTS"
                     m.d.rx += [
@@ -61,6 +82,14 @@ class PCIePhyTX(Elaboratable):
                     m.d.rx += lane.tx_e_idle.eq(self.eidle)
                 #with m.Else():
                 #    m.d.rx += lane.tx_e_idle.eq(0b11)
+
+
+            with m.State("SKP-ORDERED-SET"):
+                m.d.rx += [
+                    symbol1.eq(Ctrl.SKP),
+                    symbol2.eq(Ctrl.SKP),
+                ]
+                m.next = "IDLE"
 
 
             with m.State("TSn-LANE-FTS"):
