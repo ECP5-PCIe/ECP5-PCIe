@@ -23,7 +23,7 @@ STATE_TEST = False
 TESTING_STATE = State.Configuration_Idle
 
 # Record LTSSM state transitions
-FSM_LOG = False
+FSM_LOG = True
 
 # Default mode is to record all received symbols
 
@@ -41,17 +41,17 @@ class SERDESTestbench(Elaboratable):
         lane = serdes.lane # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
-        m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
+        #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
         # Link Status Machine to test
         #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_txfake, phy_rx)
-        m.d.comb += [
-            phy_tx.ts.eq(0),
-            phy_tx.ts.valid.eq(1),
-            phy_tx.ts.rate.eq(1),
-            phy_tx.ts.ctrl.eq(0)
-        ]
+        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
+        #m.d.comb += [
+        #    phy_tx.ts.eq(0),
+        #    phy_tx.ts.valid.eq(1),
+        #    phy_tx.ts.rate.eq(1),
+        #    phy_tx.ts.ctrl.eq(0)
+        #]
 
         m.d.comb += [
             #lane.rx_invert.eq(0),

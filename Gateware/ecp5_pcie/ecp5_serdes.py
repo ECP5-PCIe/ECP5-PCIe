@@ -403,8 +403,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_ENC_BYPASS        ="0b0",
 
             # CH0 DET
-            i_CH0_FFC_PCIE_DET_EN   = 0, #pcie_det_en,
-            i_CH0_FFC_PCIE_CT       = 0, #pcie_ct,
+            i_CH0_FFC_PCIE_DET_EN   = pcie_det_en,
+            i_CH0_FFC_PCIE_CT       = pcie_ct,
             o_CH0_FFS_PCIE_DONE     = pcie_done,
             o_CH0_FFS_PCIE_CON      = pcie_con,
 
