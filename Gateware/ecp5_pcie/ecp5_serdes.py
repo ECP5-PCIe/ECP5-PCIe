@@ -263,157 +263,157 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_D_LOW_MARK            ="0d4",
             p_D_HIGH_MARK           ="0d12",
 
-            # CH0 — protocol
-            p_CH0_PROTOCOL          ="PCIE",
-            p_CH0_PCIE_MODE         ="0b1",
+            # CH1 — protocol
+            p_CH1_PROTOCOL          ="PCIE",
+            p_CH1_PCIE_MODE         ="0b1",
 
             # RX CH ­— power management
-            p_CH0_RPWDNB            ="0b1",
-            i_CH0_FFC_RXPWDNB       =1,
+            p_CH1_RPWDNB            ="0b1",
+            i_CH1_FFC_RXPWDNB       =1,
 
             # RX CH ­— reset
-            i_CH0_FFC_RRST          =0,
-            i_CH0_FFC_LANE_RX_RST   =0,
+            i_CH1_FFC_RRST          =0,
+            i_CH1_FFC_LANE_RX_RST   =0,
 
             # RX CH ­— input
-            i_CH0_FFC_SB_INV_RX     =rx_inv,
+            i_CH1_FFC_SB_INV_RX     =rx_inv,
  
             p_CH1_REQ_EN            ="0b1",
             p_CH1_RX_RATE_SEL       ="0d8",
             p_CH1_REQ_LVL_SET       ="0b00",
 
-            p_CH0_RTERM_RX          ="0d22",    # 50 Ohm (wizard value used, does not match datasheet)
-            p_CH0_RXIN_CM           ="0b11",    # CMFB (wizard value used)
-            p_CH0_RXTERM_CM         ="0b11",    # RX Input (wizard value used)
+            p_CH1_RTERM_RX          ="0d22",    # 50 Ohm (wizard value used, does not match datasheet)
+            p_CH1_RXIN_CM           ="0b11",    # CMFB (wizard value used)
+            p_CH1_RXTERM_CM         ="0b11",    # RX Input (wizard value used)
 
             # RX CH ­— clocking
-            i_CH0_RX_REFCLK         =self.ref_clk,
-            o_CH0_FF_RX_PCLK        =rx_clk_o,
-            i_CH0_FF_RXI_CLK        =rx_clk_i,
+            i_CH1_RX_REFCLK         =self.ref_clk,
+            o_CH1_FF_RX_PCLK        =rx_clk_o,
+            i_CH1_FF_RXI_CLK        =rx_clk_i,
 
-            p_CH0_RX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
-            p_CH0_FF_RX_H_CLK_EN    = gearing_str,    # enable  DIV/2 output clock
-            p_CH0_FF_RX_F_CLK_DIS   = gearing_str,    # disable DIV/1 output clock
+            p_CH1_RX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
+            p_CH1_FF_RX_H_CLK_EN    = gearing_str,    # enable  DIV/2 output clock
+            p_CH1_FF_RX_F_CLK_DIS   = gearing_str,    # disable DIV/1 output clock
 
-            p_CH0_AUTO_FACQ_EN      ="0b1",     # undocumented (wizard value used)
-            p_CH0_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
+            p_CH1_AUTO_FACQ_EN      ="0b1",     # undocumented (wizard value used)
+            p_CH1_AUTO_CALIB_EN     ="0b1",     # undocumented (wizard value used)
             p_CH1_BAND_THRESHOLD    ="0b00",
-            p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
-            p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
-            p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
-            p_CH0_SEL_SD_RX_CLK     ="0b0",     # FIFO driven by recovered clock
-            p_CH0_CTC_BYPASS        ="0b0",     # bypass CTC FIFO
+            p_CH1_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
+            p_CH1_RX_DCO_CK_DIV     ="0b000",   # DIV/1
+            p_CH1_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
+            p_CH1_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
+            p_CH1_CTC_BYPASS        ="0b0",     # bypass CTC FIFO
  
             p_CH1_TXDEPRE           = "DISABLED",
             p_CH1_TXDEPOST          = "DISABLED",
 
-            p_CH0_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
-            p_CH0_DCOATDDLY         ="0b00",
-            p_CH0_DCOBYPSATD        ="0b1",
-            #p_CH0_DCOCALDIV         ="0b010",
-            #p_CH0_DCOCTLGI          ="0b011",
-            #p_CH0_DCODISBDAVOID     ="0b1",
-            #p_CH0_DCOFLTDAC         ="0b00",
-            #p_CH0_DCOFTNRG          ="0b010",
-            #p_CH0_DCOIOSTUNE        ="0b010",
+            p_CH1_DCOATDCFG         ="0b00",    # begin undocumented (PCIe sample code used)
+            p_CH1_DCOATDDLY         ="0b00",
+            p_CH1_DCOBYPSATD        ="0b1",
+            #p_CH1_DCOCALDIV         ="0b010",
+            #p_CH1_DCOCTLGI          ="0b011",
+            #p_CH1_DCODISBDAVOID     ="0b1",
+            #p_CH1_DCOFLTDAC         ="0b00",
+            #p_CH1_DCOFTNRG          ="0b010",
+            #p_CH1_DCOIOSTUNE        ="0b010",
             p_CH1_DCOCALDIV         ="0b001",
             p_CH1_DCOCTLGI          ="0b010",
             p_CH1_DCODISBDAVOID     ="0b0",
             p_CH1_DCOFLTDAC         ="0b01",
             p_CH1_DCOFTNRG          ="0b111",
             p_CH1_DCOIOSTUNE        ="0b000",
-            p_CH0_DCOITUNE          ="0b00",
-            #p_CH0_DCOITUNE4LSB      ="0b010",
+            p_CH1_DCOITUNE          ="0b00",
+            #p_CH1_DCOITUNE4LSB      ="0b010",
             p_CH1_DCOITUNE4LSB      ="0b111",
-            p_CH0_DCOIUPDNX2        ="0b1",
-            p_CH0_DCONUOFLSB        ="0b101",
-            #p_CH0_DCOSCALEI         ="0b01",
-            #p_CH0_DCOSTARTVAL       ="0b010",
-            #p_CH0_DCOSTEP           ="0b11",    # end undocumented
+            p_CH1_DCOIUPDNX2        ="0b1",
+            p_CH1_DCONUOFLSB        ="0b101",
+            #p_CH1_DCOSCALEI         ="0b01",
+            #p_CH1_DCOSTARTVAL       ="0b010",
+            #p_CH1_DCOSTEP           ="0b11",    # end undocumented
             p_CH1_DCOSCALEI         ="0b00",
             p_CH1_DCOSTARTVAL       ="0b000",
             p_CH1_DCOSTEP           ="0b00",    # end undocumented
 
             # RX CH — link state machine
-            i_CH0_FFC_SIGNAL_DETECT =rx_det,    # WARNING: If 0, then no symbol lock happens
-            o_CH0_FFS_LS_SYNC_STATUS=rx_lsm,
-            p_CH0_ENABLE_CG_ALIGN   ="0b1",
-            p_CH0_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
-            p_CH0_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
-            p_CH0_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
+            i_CH1_FFC_SIGNAL_DETECT =rx_det,    # WARNING: If 0, then no symbol lock happens
+            o_CH1_FFS_LS_SYNC_STATUS=rx_lsm,
+            p_CH1_ENABLE_CG_ALIGN   ="0b1",
+            p_CH1_UDF_COMMA_MASK    ="0x3ff",   # compare all 10 bits
+            p_CH1_UDF_COMMA_A       ="0x283",   # K28.5 inverted, encoded in reversed order
+            p_CH1_UDF_COMMA_B       ="0x17C",   # K28.5, encoded in reversed order
 
-            p_CH0_MIN_IPG_CNT       ="0b11",    # minimum interpacket gap of 4
-            p_CH0_MATCH_4_ENABLE    ="0b1",     # 4 character skip matching
-            p_CH0_CC_MATCH_1        ="0x1BC",   # K28.5 Comma
-            p_CH0_CC_MATCH_2        ="0x11C",   # K28.0 Skip
-            p_CH0_CC_MATCH_3        ="0x11C",   # K28.0 Skip
-            p_CH0_CC_MATCH_4        ="0x11C",   # K28.0 Skip
+            p_CH1_MIN_IPG_CNT       ="0b11",    # minimum interpacket gap of 4
+            p_CH1_MATCH_4_ENABLE    ="0b1",     # 4 character skip matching
+            p_CH1_CC_MATCH_1        ="0x1BC",   # K28.5 Comma
+            p_CH1_CC_MATCH_2        ="0x11C",   # K28.0 Skip
+            p_CH1_CC_MATCH_3        ="0x11C",   # K28.0 Skip
+            p_CH1_CC_MATCH_4        ="0x11C",   # K28.0 Skip
 
             # RX CH — loss of signal
-            o_CH0_FFS_RLOS          =rx_los,
-            p_CH0_RLOS_SEL          ="0b1",
-            p_CH0_RX_LOS_EN         ="0b1",
-            p_CH0_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
-            p_CH0_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
+            o_CH1_FFS_RLOS          =rx_los,
+            p_CH1_RLOS_SEL          ="0b1",
+            p_CH1_RX_LOS_EN         ="0b1",
+            p_CH1_RX_LOS_LVL        ="0b100",   # Lattice "TBD" (wizard value used)
+            p_CH1_RX_LOS_CEQ        ="0b11",    # Lattice "TBD" (wizard value used)
             p_CH1_RX_LOS_HYST_EN    ="0b0",
 
             # RX CH — loss of lock
-            o_CH0_FFS_RLOL          =rx_lol,
+            o_CH1_FFS_RLOL          =rx_lol,
 
             # RX CH — data
-            **{"o_CH0_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
-            p_CH0_DEC_BYPASS        ="0b0", # Bypass 8b10b?
+            **{"o_CH1_FF_RX_D_%d" % n: self.rx_bus[n] for n in range(self.rx_bus.width)}, # Connect outputs to RX data signals
+            p_CH1_DEC_BYPASS        ="0b0", # Bypass 8b10b?
 
             # TX CH — power management
-            #p_CH0_TPWDNB            ="0b1",
-            p_CH0_TPWDNB            ="0b0",
-            i_CH0_FFC_TXPWDNB       =1,
+            #p_CH1_TPWDNB            ="0b1",
+            p_CH1_TPWDNB            ="0b0",
+            i_CH1_FFC_TXPWDNB       =1,
 
             # TX CH ­— reset
-            i_CH0_FFC_LANE_TX_RST   =0,
+            i_CH1_FFC_LANE_TX_RST   =0,
 
             # TX CH ­— output
 
-            p_CH0_TXAMPLITUDE       ="0d1000",  # 1000 mV
-            p_CH0_RTERM_TX          ="0d19",    # 50 Ohm
+            p_CH1_TXAMPLITUDE       ="0d1000",  # 1000 mV
+            p_CH1_RTERM_TX          ="0d19",    # 50 Ohm
 
-            p_CH0_TDRV_SLICE0_CUR   ="0b011",   # 400 uA
-            p_CH0_TDRV_SLICE0_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE1_CUR   ="0b000",   # 100 uA
-            p_CH0_TDRV_SLICE1_SEL   ="0b00",    # power down
-            p_CH0_TDRV_SLICE2_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE2_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE3_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE3_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE4_CUR   ="0b11",    # 3200 uA
-            p_CH0_TDRV_SLICE4_SEL   ="0b01",    # main data
-            p_CH0_TDRV_SLICE5_CUR   ="0b00",    # 800 uA
-            p_CH0_TDRV_SLICE5_SEL   ="0b00",    # power down
+            p_CH1_TDRV_SLICE0_CUR   ="0b011",   # 400 uA
+            p_CH1_TDRV_SLICE0_SEL   ="0b01",    # main data
+            p_CH1_TDRV_SLICE1_CUR   ="0b000",   # 100 uA
+            p_CH1_TDRV_SLICE1_SEL   ="0b00",    # power down
+            p_CH1_TDRV_SLICE2_CUR   ="0b11",    # 3200 uA
+            p_CH1_TDRV_SLICE2_SEL   ="0b01",    # main data
+            p_CH1_TDRV_SLICE3_CUR   ="0b11",    # 3200 uA
+            p_CH1_TDRV_SLICE3_SEL   ="0b01",    # main data
+            p_CH1_TDRV_SLICE4_CUR   ="0b11",    # 3200 uA
+            p_CH1_TDRV_SLICE4_SEL   ="0b01",    # main data
+            p_CH1_TDRV_SLICE5_CUR   ="0b00",    # 800 uA
+            p_CH1_TDRV_SLICE5_SEL   ="0b00",    # power down
 
             # TX CH ­— clocking
-            o_CH0_FF_TX_PCLK        =tx_clk_o, # Output from SERDES
-            i_CH0_FF_TXI_CLK        =tx_clk_i, # Input to SERDES
+            o_CH1_FF_TX_PCLK        =tx_clk_o, # Output from SERDES
+            i_CH1_FF_TXI_CLK        =tx_clk_i, # Input to SERDES
 
-            p_CH0_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
-            p_CH0_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock
-            p_CH0_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
+            p_CH1_TX_GEAR_MODE      = gearing_str,    # 1:2 gearbox
+            p_CH1_FF_TX_H_CLK_EN    = gearing_str,    # disable DIV/1 output clock
+            p_CH1_FF_TX_F_CLK_DIS   = gearing_str,    # enable  DIV/2 output clock
 
             # TX CH — data
-            **{"o_CH0_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
-            p_CH0_ENC_BYPASS        ="0b0",
+            **{"o_CH1_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
+            p_CH1_ENC_BYPASS        ="0b0",
 
-            # CH0 DET
-            i_CH0_FFC_PCIE_DET_EN   = pcie_det_en,
-            i_CH0_FFC_PCIE_CT       = pcie_ct,
-            o_CH0_FFS_PCIE_DONE     = pcie_done,
-            o_CH0_FFS_PCIE_CON      = pcie_con,
+            # CH1 DET
+            i_CH1_FFC_PCIE_DET_EN   = pcie_det_en,
+            i_CH1_FFC_PCIE_CT       = pcie_ct,
+            o_CH1_FFS_PCIE_DONE     = pcie_done,
+            o_CH1_FFS_PCIE_CON      = pcie_con,
 
             # Bit Slip
-            i_CH0_FFC_CDR_EN_BITSLIP= self.slip,
-            #i_CH0_FFC_FB_LOOPBACK   = 3,
+            i_CH1_FFC_CDR_EN_BITSLIP= self.slip,
+            #i_CH1_FFC_FB_LOOPBACK   = 3,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
-        m.submodules.dcu0.attrs["CHAN"] = "CH0"
+        m.submodules.dcu0.attrs["CHAN"] = "CH1"
         m.submodules.dcu0.attrs["BEL"] = "X42/Y71/DCU"
 
         return m

@@ -20,10 +20,10 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = False
-TESTING_STATE = State.Configuration_Idle
+TESTING_STATE = State.Polling_Active_TS
 
 # Record LTSSM state transitions
-FSM_LOG = True
+FSM_LOG = False
 
 # Default mode is to record all received symbols
 
@@ -187,7 +187,7 @@ class SERDESTestbench(Elaboratable):
         
         else:
             # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
-            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(serdes.lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), serdes.lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
+            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:9], lane.rx_aligned, Signal(6), serdes.lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
