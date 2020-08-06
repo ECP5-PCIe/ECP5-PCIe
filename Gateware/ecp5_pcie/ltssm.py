@@ -221,7 +221,6 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     tx.ts.ts_id.eq(1),
                     tx.ts.link.valid.eq(0),
                     tx.ts.lane.valid.eq(0),
-                    tx.ts.n_fts.eq(122),
                     tx_ts_count.eq(0),
                 ]
                 m.d.rx += rx_ts_count.eq(0)

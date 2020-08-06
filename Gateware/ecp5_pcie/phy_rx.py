@@ -25,6 +25,7 @@ class PCIePhyRX(Elaboratable):
         self.vlink = Signal(8)
         self.vlane = Signal(5)
         self.consecutive = Signal()
+        self.inverted = Signal()
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Docstring
         m = Module()
@@ -42,13 +43,22 @@ class PCIePhyRX(Elaboratable):
 
         # Whether a TS is being received
         self.recv_tsn = recv_tsn = Signal()
-        inverted = Signal()
 
         # Beginning to receive a TS
         self.start_receive_ts = Signal()
 
         # and receive it
         self.ts_received = Signal()
+
+        # Whether the TS is inverted
+        inverted = self.inverted # Signal()
+
+        # Limit inversion rate, because inverting takes a while to propagate.
+        # Otherwise it will oscillate and return garbage.
+        # (And the moment when the inversion happens, the symbol will be garbled, since it isn't aligned to symbol boundaries.)
+        last_invert = Signal(8)
+        with m.If(last_invert != 0):
+            m.d.rx += last_invert.eq(last_invert - 1)
 
 
         # Structure of a TS:
@@ -114,10 +124,8 @@ class PCIePhyRX(Elaboratable):
                     m.next = "TSn-ID%d" % (i + 1)
                     with m.If(symbol1 == D(10,2)):
                         m.d.rx += ts_current.ts_id.eq(0)
-                        m.d.rx += inverted.eq(0)
                     with m.If(symbol1 == D(5,2)):
                         m.d.rx += ts_current.ts_id.eq(1)
-                        m.d.rx += inverted.eq(0)
                     with m.If(symbol1 == D(21,5)):
                         m.d.rx += ts_current.ts_id.eq(0)
                         m.d.rx += inverted.eq(1)
@@ -130,8 +138,11 @@ class PCIePhyRX(Elaboratable):
             with m.State("TSn-ID4"):
                 m.next = "COMMA"
                 with m.If(inverted):
-                    lane.rx_invert.eq(~lane.rx_invert) # Maybe it should change the disparity instead?
                     m.d.rx += ts.valid.eq(0)
+                    m.d.rx += inverted.eq(0)
+                    with m.If(last_invert == 0):
+                        m.d.rx += lane.rx_invert.eq(~lane.rx_invert) # Maybe it should change the disparity instead?
+                        m.d.rx += last_invert.eq(200)
                 
                 # If its not inverted, then a valid TS was received.
                 with m.Else():
