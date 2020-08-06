@@ -147,16 +147,27 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         m = Module()
 
         # Do TX CDC
-        #m.submodules += FFSynchronizer(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle), Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle), o_domain="tx", stages=4)
-        m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(
-        Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
-        #m.d.comb += self.__lane.tx_symbol.eq(Cat(Ctrl.COM, D(10, 2)))
+        # FFSynchronizer
+        if False:
+            m.submodules += FFSynchronizer(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle), Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle), o_domain="tx", stages=4)
+        
+        # No CDC
+        if True:
+            m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(
+                Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
 
-        #tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=3, r_domain="tx", w_domain="rx")
-        #m.d.comb += tx_fifo.w_data.eq(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
-        #m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(tx_fifo.r_data)
-        #m.d.comb += tx_fifo.r_en.eq(1)
-        #m.d.comb += tx_fifo.w_en.eq(1)
+        # AsyncFIFOBuffered
+        if False:
+            tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=3, r_domain="tx", w_domain="rx")
+            m.d.comb += tx_fifo.w_data.eq(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
+            m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(tx_fifo.r_data)
+            m.d.comb += tx_fifo.r_en.eq(1)
+            m.d.comb += tx_fifo.w_en.eq(1)
+
+        # Testing symbols
+        if False:
+            m.d.comb += self.__lane.tx_symbol.eq(Cat(Ctrl.COM, D(10, 2)))
+
 
         self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio, comma=Cat(Ctrl.COM, 1))
         m.submodules += self.slip
