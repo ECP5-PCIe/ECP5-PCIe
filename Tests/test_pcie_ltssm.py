@@ -13,17 +13,17 @@ from ecp5_pcie.utils.parts import DTR
 # Usage: python test_pcie_2.py run
 #        python test_pcie_2.py grab
 
-CAPTURE_DEPTH = 512
+CAPTURE_DEPTH = 2048
 
 # Record TS
 TS_TEST = False
 
 # Record a State
-STATE_TEST = False
-TESTING_STATE = State.Polling_Active_TS
+STATE_TEST = True
+TESTING_STATE = State.Polling_Configuration_TS
 
 # Record LTSSM state transitions
-FSM_LOG = False
+FSM_LOG = True
 
 # Default mode is to record all received symbols
 
@@ -37,8 +37,8 @@ class SERDESTestbench(Elaboratable):
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
-        #m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
-        lane = serdes.lane # Aligner for aligning COM symbols
+        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
+        #lane = serdes.lane # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
         #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
@@ -151,10 +151,11 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(32)
             
-            with m.If(ltssm.debug_state != TESTING_STATE):
-                m.d.rx += time_since_state.eq(0)
-            with m.Else():
-                m.d.rx += time_since_state.eq(time_since_state + 1)
+            #with m.If(ltssm.debug_state != TESTING_STATE):
+            #    m.d.rx += time_since_state.eq(0)
+            #with m.Else():
+            #    m.d.rx += time_since_state.eq(time_since_state + 1)
+            m.d.rx += time_since_state.eq(ltssm.tx_ts_count)
 
             debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
                 time_since_state,
@@ -187,7 +188,7 @@ class SERDESTestbench(Elaboratable):
         
         else:
             # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
-            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(serdes.rx_bus[0:9], lane.rx_aligned, Signal(6), serdes.lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
+            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -199,7 +200,7 @@ import serial
 
 
 import os
-#os.environ["NMIGEN_verbose"] = "Yes"
+os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":

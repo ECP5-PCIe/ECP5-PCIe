@@ -88,7 +88,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         with m.Elif(lane.rx_symbol[9:18] == Ctrl.IDL):
             m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
         
-        m.d.rx += tx.ts.ctrl.loopback.eq(1)
+        m.d.rx += tx.ts.ctrl.loopback.eq(0)
 
         
         def reset_ts_count_and_jump(next_state):
@@ -205,7 +205,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # If 8 consecutive TSs fitting the conditions have been received, go to Polling.Configuration.
                 with m.If((rx_ts_count >= 8) & (tx_ts_count >= 1024)):
-                        reset_ts_count_and_jump(State.Polling_Configuration)
+                    reset_ts_count_and_jump(State.Polling_Configuration)
                 
                 # And if no 8 consecutive, valid TSs have been received for 24 ms, go to Detect.
                 timeout(24, State.Detect)                               
@@ -221,6 +221,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     tx.ts.ts_id.eq(1),
                     tx.ts.link.valid.eq(0),
                     tx.ts.lane.valid.eq(0),
+                    tx.ts.n_fts.eq(122),
                     tx_ts_count.eq(0),
                 ]
                 m.d.rx += rx_ts_count.eq(0)
