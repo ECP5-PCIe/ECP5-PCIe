@@ -301,8 +301,12 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             p_CH0_CDR_MAX_RATE      ="2.5",     # 2.5 Gbps
             p_CH0_RX_DCO_CK_DIV     ="0b000",   # DIV/1
             p_CH0_PDEN_SEL          ="0b1",     # phase detector disabled on ~LOS
-            p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
+            #p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by recovered clock
+            p_CH0_SEL_SD_RX_CLK     ="0b1",     # FIFO driven by FF_EBRD_CLK
             p_CH0_CTC_BYPASS        ="0b0",     # bypass CTC FIFO
+
+            # FIFO bridge clocking
+            i_CH0_FF_EBRD_CLK       =tx_clk_i,
  
             p_CH0_TXDEPRE           = "DISABLED",
             p_CH0_TXDEPOST          = "DISABLED",

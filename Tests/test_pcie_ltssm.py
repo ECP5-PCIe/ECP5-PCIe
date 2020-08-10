@@ -19,8 +19,9 @@ CAPTURE_DEPTH = 2048
 TS_TEST = False
 
 # Record a State
-STATE_TEST = True
+STATE_TEST = False
 TESTING_STATE = State.Polling_Configuration_TS
+
 # Record LTSSM state transitions
 FSM_LOG = True
 
@@ -154,8 +155,8 @@ class SERDESTestbench(Elaboratable):
             #    m.d.rx += time_since_state.eq(0)
             #with m.Else():
             #    m.d.rx += time_since_state.eq(time_since_state + 1)
-            #m.d.rx += time_since_state.eq(ltssm.tx_ts_count)
-            m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
+            m.d.rx += time_since_state.eq(ltssm.tx_ts_count)
+            #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
 
             debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
                 time_since_state,
