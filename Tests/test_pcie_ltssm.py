@@ -20,7 +20,7 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = True
-TESTING_STATE = State.Configuration_Idle
+TESTING_STATE = State.Polling_Active_TS
 
 # Record LTSSM state transitions
 FSM_LOG = True
@@ -183,7 +183,7 @@ class SERDESTestbench(Elaboratable):
             # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
             # preceding number is number of bits
             debug = UARTDebugger(uart, 25, CAPTURE_DEPTH, Cat(
-                last_state, ltssm.debug_state, time, ltssm.rx_idl_count_total, Signal(32), ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
+                last_state, ltssm.debug_state, time, realtime_rx, ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
                 phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
                 ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         
@@ -210,7 +210,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
