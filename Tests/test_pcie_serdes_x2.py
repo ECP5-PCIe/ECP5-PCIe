@@ -3,7 +3,7 @@ from nmigen.build import *
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
-from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.ecp5_serdes_geared_x2 import LatticeECP5PCIeSERDESx2
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.phy_rx import PCIePhyRX
@@ -22,8 +22,8 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2)
-        m.submodules.aligner = lane = serdes.lane #DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx2()
+        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
         #m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         #lane = serdes.lane
 
@@ -43,7 +43,7 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("tx").eq(serdes.tx_clk),
         ]
         
-        cntr = Signal(8)
+        cntr = Signal(5)
         #with m.If(cntr == 0):
         #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
         #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
@@ -80,8 +80,37 @@ class SERDESTestbench(Elaboratable):
         with m.Elif(cntr == 1):
             m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
             m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+
+        with m.Elif(cntr == 6):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        with m.Elif(cntr == 7):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+
+        with m.Elif(cntr == 12):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
+        with m.Elif(cntr == 13):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        with m.Elif(cntr == 14):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
+            
+        with m.Elif(cntr == 20):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
+        with m.Elif(cntr == 21):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        with m.Elif(cntr == 22):
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
+
         with m.Else():
-            m.d.tx += lane.tx_symbol.eq(Ctrl.IDL)
+            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
+            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
         #m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
         #m.d.tx += lane.tx_symbol[9:18].eq(cntr)
         m.d.tx += cntr.eq(cntr + 1)
@@ -101,7 +130,7 @@ class SERDESTestbench(Elaboratable):
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
         m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("rx"))
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         refclkcounter = Signal(32)
         m.d.sync += refclkcounter.eq(refclkcounter + 1)
@@ -129,7 +158,7 @@ class SERDESTestbench(Elaboratable):
             led_err3.eq(~(lane.det_valid)),#serdes.rxde0)),
             led_err4.eq(~(lane.det_status)),#serdes.rxce0)),
         ]
-        triggered = Signal(reset = 1)
+        triggered = Const(1)
         #m.d.tx += triggered.eq((triggered ^ ((lane.rx_symbol[0:9] == Ctrl.EIE) | (lane.rx_symbol[9:18] == Ctrl.EIE))))
 
         uart_pins = platform.request("uart", 0)
@@ -138,7 +167,9 @@ class SERDESTestbench(Elaboratable):
 
 
         #m.d.rx += lane.tx_e_idle.eq(1)
-        debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], cntr == 0, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
+        debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6), lane.rx_symbol[9:18], lane.rx_valid[1], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
+        # You need to add the SERDES within the SERDES as a self. attribute for this to work
+        #debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(serdes.serdes.lane.rx_symbol[0:9], cntr == 0, Signal(6), Signal(9), lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rxf", triggered) # lane.rx_present & lane.rx_locked)
         m.submodules += debug
 
         return m
@@ -156,10 +187,10 @@ os.environ["NMIGEN_verbose"] = "Yes"
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
         if arg == "run":
-            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
+            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True, nextpnr_opts="")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
 
@@ -213,6 +244,8 @@ if __name__ == "__main__":
                         else:
                             print(phi, end=" ")
                         phi = "B"
+                        if word & (1 << 9):
+                            print("L ", end=" ")
                         if word & 0x1ff == 0x1ee:
                             print("E", end="")
                             #print("{}KEEEEEEEE".format(
