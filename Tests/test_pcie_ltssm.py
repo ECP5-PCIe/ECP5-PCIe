@@ -4,7 +4,7 @@ from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
-from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.ecp5_serdes_geared_x2 import LatticeECP5PCIeSERDESx2
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.ltssm import *
@@ -20,7 +20,7 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = True
-TESTING_STATE = State.Polling_Active_TS
+TESTING_STATE = State.Configuration_Linkwidth_Start
 
 # Record LTSSM state transitions
 FSM_LOG = True
@@ -36,7 +36,7 @@ class SERDESTestbench(Elaboratable):
 
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
@@ -162,7 +162,7 @@ class SERDESTestbench(Elaboratable):
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,
                 lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
-                ), "rx", ltssm.debug_state == TESTING_STATE, timeout=100 * 1000 * 1000)
+                ), "rx", (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
 
         elif FSM_LOG:
             # Keep track of time in 8 nanosecond increments
@@ -210,7 +210,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
