@@ -13,14 +13,14 @@ from ecp5_pcie.utils.parts import DTR
 # Usage: python test_pcie_2.py run
 #        python test_pcie_2.py grab
 
-CAPTURE_DEPTH = 2048
+CAPTURE_DEPTH = 1024
 
 # Record TS
 TS_TEST = False
 
 # Record a State
-STATE_TEST = False
-TESTING_STATE = State.Polling_Configuration_TS
+STATE_TEST = True
+TESTING_STATE = State.Configuration_Idle
 
 # Record LTSSM state transitions
 FSM_LOG = True
@@ -151,11 +151,11 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(32)
             
-            #with m.If(ltssm.debug_state != TESTING_STATE):
-            #    m.d.rx += time_since_state.eq(0)
-            #with m.Else():
-            #    m.d.rx += time_since_state.eq(time_since_state + 1)
-            m.d.rx += time_since_state.eq(ltssm.tx_ts_count)
+            with m.If(ltssm.debug_state != TESTING_STATE):
+                m.d.rx += time_since_state.eq(0)
+            with m.Else():
+                m.d.rx += time_since_state.eq(time_since_state + 1)
+            #m.d.rx += time_since_state.eq(ltssm.rx_idl_count_total)
             #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
 
             debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
@@ -183,7 +183,7 @@ class SERDESTestbench(Elaboratable):
             # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
             # preceding number is number of bits
             debug = UARTDebugger(uart, 25, CAPTURE_DEPTH, Cat(
-                last_state, ltssm.debug_state, time, realtime_rx, ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
+                last_state, ltssm.debug_state, time, ltssm.rx_idl_count_total, Signal(32), ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
                 phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
                 ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         
@@ -210,7 +210,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
