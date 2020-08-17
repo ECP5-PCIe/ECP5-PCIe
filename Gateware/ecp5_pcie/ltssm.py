@@ -80,6 +80,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         # Currently its Gen 1 only
         m.d.comb += tx.ts.rate.gen1.eq(1)
 
+        # TODO: Add scrambling
+        m.d.comb += tx.ts.ctrl.disable_scrambling.eq(1)
+
         #Debugging stuff
         with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
             m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 2)
@@ -379,8 +382,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += tx_ts_count.eq(0)
                 m.d.rx += rx_ts_count.eq(0)
 
-                # When IDL is received, wait until 8 have arrived and 16 sent after the first one has arrived.
-                with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
+                # When 0x00 0x00 is received, wait until 8 have arrived and 16 sent after the first one has arrived.
+                with m.If(lane.rx_symbol == 0):
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
                         m.d.rx += tx_idl_count.eq(0)

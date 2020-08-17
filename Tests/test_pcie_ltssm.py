@@ -20,7 +20,7 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = True
-TESTING_STATE = State.Configuration_Linkwidth_Start
+TESTING_STATE = State.Configuration_Idle
 
 # Record LTSSM state transitions
 FSM_LOG = True

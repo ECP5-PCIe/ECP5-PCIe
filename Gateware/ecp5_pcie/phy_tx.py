@@ -74,8 +74,8 @@ class PCIePhyTX(Elaboratable):
 
                 # Transmit idle data
                 with m.Elif(self.idle):
-                    m.d.rx += symbol1.eq(Ctrl.IDL)
-                    m.d.rx += symbol2.eq(Ctrl.IDL)
+                    m.d.rx += symbol1.eq(0)#(Ctrl.IDL)
+                    m.d.rx += symbol2.eq(0)#(Ctrl.IDL)
 
                 # Otherwise go to electrical idle, if told so
                 with m.Else():
