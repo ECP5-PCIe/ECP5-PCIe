@@ -414,10 +414,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # Bit Slip
             i_CH0_FFC_CDR_EN_BITSLIP= self.slip,
+            
             #i_CH0_FFC_FB_LOOPBACK   = 3,
         )
         m.submodules.dcu0.attrs["LOC"] = "DCU0"
-        m.submodules.dcu0.attrs["CHAN"] = "CH0"
-        m.submodules.dcu0.attrs["BEL"] = "X42/Y71/DCU"
 
         return m

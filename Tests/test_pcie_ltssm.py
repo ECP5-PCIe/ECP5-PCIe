@@ -5,10 +5,11 @@ from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
 from ecp5_pcie.ecp5_serdes_geared_x2 import LatticeECP5PCIeSERDESx2
-from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface
+from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface, PCIeScrambler
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.ltssm import *
 from ecp5_pcie.utils.parts import DTR
+from ecp5_pcie.lfsr import PCIeLFSR
 
 # Usage: python test_pcie_2.py run
 #        python test_pcie_2.py grab
@@ -37,10 +38,12 @@ class SERDESTestbench(Elaboratable):
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
-        m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
+        m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
+        m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
         m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+        #m.submodules.lfsr = lfsr = PCIeLFSR(0, 1)
         #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
         # Link Status Machine to test
@@ -52,6 +55,8 @@ class SERDESTestbench(Elaboratable):
         #    phy_tx.ts.rate.eq(1),
         #    phy_tx.ts.ctrl.eq(0)
         #]
+        
+        m.d.rx += lane.enable.eq(ltssm.status.link.scrambling)
 
         m.d.comb += [
             #lane.rx_invert.eq(0),
@@ -72,10 +77,10 @@ class SERDESTestbench(Elaboratable):
         ]
 
         # Clock outputs for the RX and TX clock domain
-        platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
-        platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        #platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
+        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        #platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
+        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         # Counters for the LEDs
         refclkcounter = Signal(32)
@@ -151,16 +156,17 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(32)
             
-            with m.If(ltssm.debug_state != TESTING_STATE):
-                m.d.rx += time_since_state.eq(0)
-            with m.Else():
-                m.d.rx += time_since_state.eq(time_since_state + 1)
+            #with m.If(ltssm.debug_state != TESTING_STATE):
+            #    m.d.rx += time_since_state.eq(0)
+            #with m.Else():
+            #    m.d.rx += time_since_state.eq(time_since_state + 1)
+            m.d.rx += time_since_state.eq(ltssm.status.link.scrambling)
             #m.d.rx += time_since_state.eq(ltssm.rx_idl_count_total)
             #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
 
             debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
                 time_since_state,
-                lane.rx_symbol, lane.tx_symbol,
+                lane.rx_symbol, aligner.rx_symbol,
                 lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
                 ), "rx", (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
 
@@ -207,10 +213,10 @@ os.environ["NMIGEN_verbose"] = "Yes"
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
         if arg == "run":
-            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True)
+            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB2', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0

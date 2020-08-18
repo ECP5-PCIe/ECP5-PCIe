@@ -3,6 +3,7 @@ from nmigen.build import *
 from .serdes import K, D, Ctrl, PCIeSERDESInterface
 from .layouts import ts_layout
 
+# TODO: When TS data changes during TS sending, the sent TS changes. For example when it changes from TS1 to TS2, itll send ...D10.2 D10.2 D5.2 D5.2 which is kinda suboptimal. TS should be buffered.
 class PCIePhyTX(Elaboratable):
     """
     PCIe Transmitter for 1:2 gearing

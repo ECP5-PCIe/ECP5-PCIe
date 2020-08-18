@@ -75,13 +75,13 @@ class LatticeECP5PCIeSERDESx2(Elaboratable): # Based on Yumewatari
 
 
         # CDC
-        rx_fifo = m.submodules.rx_fifo = AsyncFIFOBuffered(width=20, depth=5, r_domain="rx", w_domain="rxf")
+        rx_fifo = m.submodules.rx_fifo = AsyncFIFOBuffered(width=20, depth=4, r_domain="rx", w_domain="rxf")
         m.d.rxf += rx_fifo.w_data.eq(Cat(lane.rx_symbol, lane.rx_valid))
         m.d.comb += Cat(self.lane.rx_symbol, self.lane.rx_valid).eq(rx_fifo.r_data)
         m.d.comb += rx_fifo.r_en.eq(1)
         m.d.rxf += rx_fifo.w_en.eq(self.rx_clk)
 
-        tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=5, r_domain="txf", w_domain="tx")
+        tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=4, r_domain="txf", w_domain="tx")
         m.d.comb += tx_fifo.w_data.eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
         m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(tx_fifo.r_data)
         m.d.txf  += tx_fifo.r_en.eq(self.tx_clk)

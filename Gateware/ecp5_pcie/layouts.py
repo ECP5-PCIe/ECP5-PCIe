@@ -35,6 +35,7 @@ ltssm_layout = [
         ("speed", 1), # 0: 2.5, 1: 5
         ("up", 1), # Currently the only thing that is implemented
         ("training", 1),
+        ("scrambling", 1), # And this too
     ]),
     ("recv_err", 2),
     ("presence",1),

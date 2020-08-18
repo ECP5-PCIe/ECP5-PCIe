@@ -1,6 +1,10 @@
 # LibreOffice files
 .~lock*
 
+# nMigen simulations
+*.gtkw
+*.vcd
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

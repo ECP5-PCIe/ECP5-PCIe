@@ -7,9 +7,10 @@ from nmigen.lib.cdc import FFSynchronizer
 from enum import IntEnum
 
 from .align import SymbolSlip
+from .lfsr import PCIeLFSR
 
 
-__all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner"]
+__all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner", "PCIeScrambler"]
 
 
 def K(x, y): return (1 << 8) | (y << 5) | x
@@ -120,7 +121,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
     A multiplexer that aligns commas to the first symbol of the word, for SERDESes that only
     perform bit alignment and not symbol alignment.
     """
-    def __init__(self, lane):
+    def __init__(self, lane : PCIeSERDESInterface):
         self.ratio        = lane.ratio
 
         self.rx_invert    = lane.rx_invert
@@ -187,4 +188,63 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
                 for n in range(self.__lane.ratio)
             )),
         ]
+        return m
+
+
+class PCIeScrambler(PCIeSERDESInterface):
+    """
+    Scrambler and Descrambler for PCIe, needs to be after an aligner
+    """
+    def __init__(self, lane : PCIeSERDESInterface, enable = Signal()):
+        self.ratio        = lane.ratio
+
+        self.rx_invert    = lane.rx_invert
+        self.rx_align     = lane.rx_align
+        self.rx_present   = lane.rx_present
+        self.rx_locked    = lane.rx_locked
+        self.rx_aligned   = lane.rx_aligned
+
+        self.rx_symbol    = Signal(lane.ratio * 9)
+        self.rx_valid     = Signal(lane.ratio)
+
+        self.tx_symbol    = Signal(lane.ratio * 9)
+        self.tx_set_disp  = Signal(lane.ratio)
+        self.tx_disp      = Signal(lane.ratio)
+        self.tx_e_idle    = Signal(lane.ratio)
+
+        self.det_enable   = lane.det_enable
+        self.det_valid    = lane.det_valid
+        self.det_status   = lane.det_status
+
+        self.enable      = enable
+
+        self.__lane = lane
+
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+
+        # Scramble transmitted and received data, skip on SKP, reset on COM
+
+        m.submodules.rx_lfsr = rx_lfsr = PCIeLFSR(self.ratio, self.__lane.rx_symbol[0:9] == Ctrl.COM, self.__lane.rx_symbol[9:18] != Ctrl.SKP)
+
+        with m.If(self.enable & (self.__lane.rx_symbol[8] == 0)):
+            m.d.rx += self.rx_symbol.eq(rx_lfsr.output ^ self.__lane.rx_symbol)
+        with m.Else():
+            m.d.rx += self.rx_symbol.eq(self.__lane.rx_symbol)
+
+        # This is necessary because the scrambling already takes one clock cycle
+        m.d.rx += self.rx_valid.eq(self.__lane.rx_valid)
+
+
+        m.submodules.tx_lfsr = tx_lfsr = PCIeLFSR(self.ratio, self.tx_symbol[0:9] == Ctrl.COM, self.tx_symbol[9:18] != Ctrl.SKP)
+
+        with m.If(self.enable & (self.tx_symbol[8] == 0)):
+            m.d.rx += self.__lane.tx_symbol.eq(tx_lfsr.output ^ self.tx_symbol)
+        with m.Else():
+            m.d.rx += self.__lane.tx_symbol.eq(self.tx_symbol)
+
+        m.d.rx += self.__lane.tx_set_disp.eq(self.tx_set_disp)
+        m.d.rx += self.__lane.tx_disp    .eq(self.tx_disp)
+        m.d.rx += self.__lane.tx_e_idle  .eq(self.tx_e_idle)
+
         return m
