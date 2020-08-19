@@ -227,10 +227,31 @@ class PCIeScrambler(PCIeSERDESInterface):
 
         m.submodules.rx_lfsr = rx_lfsr = PCIeLFSR(self.ratio, self.__lane.rx_symbol[0:9] == Ctrl.COM, self.__lane.rx_symbol[9:18] != Ctrl.SKP)
 
-        with m.If(self.enable & (self.__lane.rx_symbol[8] == 0)):
-            m.d.rx += self.rx_symbol.eq(rx_lfsr.output ^ self.__lane.rx_symbol)
-        with m.Else():
-            m.d.rx += self.rx_symbol.eq(self.__lane.rx_symbol)
+        def scramble(input, output):
+            with m.If(self.enable & (input[8] == 0)):
+                m.d.rx += output[0:9].eq(rx_lfsr.output[0:9] ^ input[0:9])
+            with m.Else():
+                m.d.rx += output[0:9].eq(input[0:9])
+                
+            with m.If(self.enable & (input[17] == 0)):
+                with m.If(input[0:9] == Ctrl.COM): # TODO: This is a hack. Please fix.
+                    m.d.rx += output[9:18].eq(0xFF ^ input[9:18])
+                with m.Else():
+                    m.d.rx += output[9:18].eq(rx_lfsr.output[9:18] ^ input[9:18])
+            with m.Else():
+                m.d.rx += output[9:18].eq(input[9:18])
+            
+
+        #with m.If(self.enable & (self.__lane.rx_symbol[8] == 0)):
+        #    with m.If(self.__lane.rx_symbol[0:9] == Ctrl.COM):
+        #        m.d.rx += self.rx_symbol.eq(0x1FE00 ^ self.__lane.rx_symbol)
+        #    with m.Else():
+        #        m.d.rx += self.rx_symbol.eq(rx_lfsr.output ^ self.__lane.rx_symbol)
+        #with m.Else():
+        #    m.d.rx += self.rx_symbol.eq(self.__lane.rx_symbol)
+
+        scramble(self.__lane.rx_symbol, self.rx_symbol)
+        scramble(self.tx_symbol, self.__lane.tx_symbol)
 
         # This is necessary because the scrambling already takes one clock cycle
         m.d.rx += self.rx_valid.eq(self.__lane.rx_valid)
@@ -238,10 +259,13 @@ class PCIeScrambler(PCIeSERDESInterface):
 
         m.submodules.tx_lfsr = tx_lfsr = PCIeLFSR(self.ratio, self.tx_symbol[0:9] == Ctrl.COM, self.tx_symbol[9:18] != Ctrl.SKP)
 
-        with m.If(self.enable & (self.tx_symbol[8] == 0)):
-            m.d.rx += self.__lane.tx_symbol.eq(tx_lfsr.output ^ self.tx_symbol)
-        with m.Else():
-            m.d.rx += self.__lane.tx_symbol.eq(self.tx_symbol)
+        #with m.If(self.enable & (self.tx_symbol[8] == 0)):
+        #    with m.If(self.tx_symbol[0:9] == Ctrl.COM):
+        #        m.d.rx += self.__lane.tx_symbol.eq(0x1FE00 ^ self.tx_symbol)
+        #    with m.Else():
+        #        m.d.rx += self.__lane.tx_symbol.eq(tx_lfsr.output ^ self.tx_symbol)
+        #with m.Else():
+        #    m.d.rx += self.__lane.tx_symbol.eq(self.tx_symbol)
 
         m.d.rx += self.__lane.tx_set_disp.eq(self.tx_set_disp)
         m.d.rx += self.__lane.tx_disp    .eq(self.tx_disp)

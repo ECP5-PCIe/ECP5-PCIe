@@ -400,8 +400,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                             m.d.rx += tx.idle.eq(0)
                             m.d.rx += rx_idl_count.eq(0)
                             m.d.rx += tx_idl_count.eq(0)
-                            # TODO: After LFSR testing is done, uncomment this to proceed with DLLPs
-                            #reset_ts_count_and_jump(State.L0)
+                            reset_ts_count_and_jump(State.L0)
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
 

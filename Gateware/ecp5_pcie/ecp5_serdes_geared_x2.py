@@ -1,7 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
-from nmigen.lib.fifo import AsyncFIFOBuffered
+from nmigen.lib.fifo import AsyncFIFOBuffered, AsyncFIFO
 from .serdes import PCIeSERDESInterface, K, Ctrl
 from .ecp5_serdes import LatticeECP5PCIeSERDES
 
@@ -56,22 +56,27 @@ class LatticeECP5PCIeSERDESx2(Elaboratable): # Based on Yumewatari
 
         m.d.txf += self.tx_clk.eq(~self.tx_clk)
         # Do NOT add an invert here! It works, checked with x1 gearing. If you do, a "COM SKP SKP SKP" will turn into a "SKP COM SKP SKP"
-        with m.If(self.tx_clk):
-            m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[9:18])
-            m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[1])
-            m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[1])
-            m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[1])
-        with m.Else():
-            m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[0:9])
-            m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[0])
-            m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[0])
-            m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[0])
+        #with m.If(self.tx_clk):
+        #    m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[9:18])
+        #    m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[1])
+        #    m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[1])
+        #    m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[1])
+        #with m.Else():
+        #    m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[0:9])
+        #    m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[0])
+        #    m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[0])
+        #    m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[0])
 
             # To ensure that it inputs consistent data
             # m.d.rxf += lane.tx_symbol.eq(self.lane.tx_symbol)
             # m.d.rxf += lane.tx_disp.eq(self.lane.tx_disp)
             # m.d.rxf += lane.tx_set_disp.eq(self.lane.tx_set_disp)
             # m.d.rxf += lane.tx_e_idle.eq(self.lane.tx_e_idle)
+
+        m.d.txf += serdes.lane.tx_symbol    .eq(Mux(self.tx_clk, lane.tx_symbol[9:18],  lane.tx_symbol[0:9]))
+        m.d.txf += serdes.lane.tx_disp      .eq(Mux(self.tx_clk, lane.tx_disp[1],       lane.tx_disp[0]))
+        m.d.txf += serdes.lane.tx_set_disp  .eq(Mux(self.tx_clk, lane.tx_set_disp[1],   lane.tx_set_disp[0]))
+        m.d.txf += serdes.lane.tx_e_idle    .eq(Mux(self.tx_clk, lane.tx_e_idle[1],     lane.tx_e_idle[0]))
 
 
         # CDC
@@ -86,6 +91,7 @@ class LatticeECP5PCIeSERDESx2(Elaboratable): # Based on Yumewatari
         m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(tx_fifo.r_data)
         m.d.txf  += tx_fifo.r_en.eq(self.tx_clk)
         m.d.comb += tx_fifo.w_en.eq(1)
+        #m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
 
 
         serdes.lane.rx_invert     = self.lane.rx_invert

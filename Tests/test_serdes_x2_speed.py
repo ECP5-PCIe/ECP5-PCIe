@@ -16,9 +16,6 @@ from ecp5_pcie.lfsr import PCIeLFSR
 
 CAPTURE_DEPTH = 1024
 
-# Disable debugging for speed optimization
-NO_DEBUG = False
-
 # Record TS
 TS_TEST = False
 
@@ -41,37 +38,7 @@ class SERDESTestbench(Elaboratable):
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
-        m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
-        m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
-        #lane = serdes.lane # Aligner for aligning COM symbols
-        m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
-        m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
-        #m.submodules.lfsr = lfsr = PCIeLFSR(0, 1)
-        #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
-        # Link Status Machine to test
-        #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        #m.d.comb += [
-        #    phy_tx.ts.eq(0),
-        #    phy_tx.ts.valid.eq(1),
-        #    phy_tx.ts.rate.eq(1),
-        #    phy_tx.ts.ctrl.eq(0)
-        #]
-        
-        m.d.rx += lane.enable.eq(ltssm.status.link.scrambling)
-
-        m.d.comb += [
-            #lane.rx_invert.eq(0),
-            serdes.lane.rx_align.eq(1),
-        ]
-
-        m.d.comb += [
-            #lane.rx_invert.eq(0),
-            lane.rx_align.eq(1),
-        ]
-
-        # Declare the RX and TX clock domain, most of the logic happens in the RX domain
         m.domains.rx = ClockDomain()
         m.domains.tx = ClockDomain()
         m.d.comb += [
@@ -79,129 +46,13 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("tx").eq(serdes.tx_clk),
         ]
 
-        # Clock outputs for the RX and TX clock domain
-        #platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
-        #platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
-
-        # Counters for the LEDs
-        refclkcounter = Signal(32)
-        m.d.sync += refclkcounter.eq(refclkcounter + 1)
-        rxclkcounter = Signal(32)
-        m.d.rx += rxclkcounter.eq(rxclkcounter + 1)
-        txclkcounter = Signal(32)
-        m.d.tx += txclkcounter.eq(txclkcounter + 1)
-
-        #m.d.rx += serdes.slip.eq(rxclkcounter[25])
-        
-        ## Sample temperature once a second
-        #m.d.sync += dtr.start.eq(refclkcounter[25])
-
-        # Temperature sensor, the chip gets kinda hot
-        sample = Signal()
-        m.d.sync += sample.eq(refclkcounter[25])
-        m.submodules.dtr = dtr = DTR(start=refclkcounter[25] & ~sample)
-
-        # Can be used to count how many cycles det_status is on, currently unused
-        detstatuscounter = Signal(7)
-        with m.If(lane.det_valid & lane.det_status):
-            m.d.tx += detstatuscounter.eq(detstatuscounter + 1)
-
-        leds = Cat(platform.request("led", i) for i in range(8))
-        leds_alnum = Cat(platform.request("alnum_led", 0))
-
-        # Information LEDs, first three output the clock frequency of the clock domains divided by 2^26
-        #m.d.comb += [
-        #    leds[0].eq(~(refclkcounter[25])),
-        #    leds[2].eq(~(rxclkcounter[25])),
-        #    leds[3].eq(~(txclkcounter[25])),
-        #    leds[1].eq(~(serdes.lane.rx_aligned)),
-        #    leds[4].eq(~(serdes.lane.rx_present)),
-        #    leds[5].eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
-        #    leds[6].eq(~(0)),#serdes.rxde0)),
-        #    leds[7].eq(~(ltssm.status.link.up)),#serdes.rxce0)),
-        #]
-
-        m.d.comb += leds_alnum.eq(ltssm.debug_state)
-        m.d.comb += leds.eq(~ltssm.debug_state)
-
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
 
-        # In the default mode, there are some extra words for debugging data
-        debug1 = Signal(16)
-        debug2 = Signal(16)
-        debug3 = Signal(16)
-        debug4 = Signal(16)
-        
-        # For example data from the LTSSM
-        m.d.comb += debug1.eq(ltssm.tx_ts_count)
-        m.d.comb += debug2.eq(ltssm.rx_ts_count)
-        # Or data about TSs
-        m.d.comb += debug3.eq(Cat(phy_rx.ts.valid, phy_rx.ts.lane.valid, phy_rx.ts.link.valid, phy_rx.ts.ts_id))
-        m.d.comb += debug4.eq(1234)
-
-        if NO_DEBUG:
-            pass
-        if self.tstest:
-            # l = Link Number, L = Lane Number, v = Link Valid, V = Lane Valid, t = TS Valid, T = TS ID, n = FTS count, r = TS.rate, c = TS.ctrl, d = lane.det_status, D = lane.det_valid
-            # DdTcccccrrrrrrrrnnnnnnnnLLLLLtVvllllllll
-            debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(phy_rx.ts.link.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, phy_rx.ts.valid, phy_rx.ts.lane.number, phy_rx.ts.n_fts, phy_rx.ts.rate, phy_rx.ts.ctrl, phy_rx.ts.ts_id, lane.det_status, lane.det_valid), "rx") # lane.rx_present & lane.rx_locked)
-            #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(ts.link.number, ts.link.valid, ts.lane.valid, ts.valid, ts.lane.number, ts.n_fts, ts.rate, ts.ctrl, ts.ts_id, Signal(2)), "rx") # lane.rx_present & lane.rx_locked)
-            #debug = UARTDebugger(uart, 5, CAPTURE_DEPTH, Cat(Signal(8, reset=123), Signal(4 * 8)), "rx") # lane.rx_present & lane.rx_locked)
-        
-        elif STATE_TEST:
-            # 32t 9R 9R 9T 9T 2v 2-
-            # t = Ticks since state was entered
-            # R = RX symbol
-            # T = TX symbol
-            # v = RX valid
-
-            time_since_state = Signal(32)
-            
-            #with m.If(ltssm.debug_state != TESTING_STATE):
-            #    m.d.rx += time_since_state.eq(0)
-            #with m.Else():
-            #    m.d.rx += time_since_state.eq(time_since_state + 1)
-            m.d.rx += time_since_state.eq(ltssm.status.link.scrambling)
-            #m.d.rx += time_since_state.eq(ltssm.rx_idl_count_total)
-            #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
-
-            debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
-                time_since_state,
-                lane.rx_symbol, lane.tx_symbol,
-                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
-                ), "rx", (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
-
-        elif FSM_LOG:
-            # Keep track of time in 8 nanosecond increments
-            time = Signal(64)
-            m.d.rx += time.eq(time + 1)
-
-            # Real time in 10 ns ticks, doesnt drift or change in frequency as compared to the RX clock domain.
-            realtime = Signal(64)
-            m.d.sync += realtime.eq(realtime + 1)
-
-            # Real time FF sync
-            realtime_rx = Signal(64)
-            m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
-
-            last_state = Signal(8)
-            m.d.rx += last_state.eq(ltssm.debug_state)
-            # 8o 8c 64t 64r 32i 6T 1v 1- 8l 5L o O 1-
-            # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
-            # preceding number is number of bits
-            debug = UARTDebugger(uart, 25, CAPTURE_DEPTH, Cat(
-                last_state, ltssm.debug_state, time, realtime_rx, ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
-                phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
-                ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
-        
-        else:
-            # ssssssss sa000000 ssssssss sb000000 llllllll SSSSSSSS S0000000 SSSSSSSS S0000000 dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd dddddddd s = rx_symbol, S = tx_symbol, a = aligned, b = valid, l = ltssm state, d = debug
-            debug = UARTDebugger(uart, 17, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_aligned, Signal(6), lane.rx_symbol[9:18], lane.rx_valid[0] | lane.rx_valid[1], Signal(6), ltssm.debug_state, lane.tx_symbol[0:9], Signal(7), lane.tx_symbol[9:18], Signal(7), debug1, debug2, debug3, debug4), "rx") # lane.rx_present & lane.rx_locked)
-        m.submodules += debug
+        m.submodules.debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
+            serdes.lane.rx_symbol, serdes.lane.tx_symbol, Signal(9 * 8 - 18 * 2)
+            ), "rx", timeout=100 * 1000 * 1000)
 
         return m
 
@@ -218,7 +69,7 @@ os.environ["NMIGEN_verbose"] = "Yes"
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
         if arg == "run":
-            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True, nextpnr_opts="-r")
+            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=False, nextpnr_opts="-r")
 
         if arg == "grab":
             port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
