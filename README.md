@@ -20,6 +20,7 @@ https://github.com/ECP5-PCIe/ECP5-PCIe/wiki/Setup
 - Enable PCIe on the connected device (for example on the ROCKPro64 execute `pci init` in u-boot)
 - Execute `python test_pcie_phy.py run` in the Tests folder to upload the gateware to the ECP5
 - Execute `python test_pcie_phy.py grab` to get DLLPs received in the L0 state (and the time since it has been in the L0 state).
+Sometimes the last few results are invalid and the program doesn't halt, end it by pressing `Ctrl + C`.
 It should show something like this:
 
 Data is composed of the first symbol received in one clock cycle, its representation in hexadecimal, the same for the second symbol.
