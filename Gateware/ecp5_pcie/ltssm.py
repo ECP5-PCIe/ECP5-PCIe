@@ -52,7 +52,6 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         self.debug_state = Signal(8)
         self.rx_ts_count = Signal(range(16 + 1))
         self.tx_ts_count = Signal(range(1024 + 1))
-        self.rx_idl_count_total = Signal(32)
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Think about clock domains! (assuming RX, TX pll lock, the discrepancy is 0 on average)
         m = Module()
@@ -66,7 +65,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         rx_ts_count = self.rx_ts_count
         tx_ts_count = self.tx_ts_count
 
-        # Counter for number of IDLE symbols received
+        # Counter for number of D0.0 symbols received
         rx_idl_count = Signal(range(4 + 1))
         tx_idl_count = Signal(range(8 + 1))
 
@@ -79,14 +78,6 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
         # Currently its Gen 1 only
         m.d.comb += tx.ts.rate.gen1.eq(1)
-
-        #Debugging stuff
-        with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
-            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 2)
-        with m.Elif(lane.rx_symbol[0:9] == Ctrl.IDL):
-            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
-        with m.Elif(lane.rx_symbol[9:18] == Ctrl.IDL):
-            m.d.rx += self.rx_idl_count_total.eq(self.rx_idl_count_total + 1)
         
         m.d.rx += tx.ts.ctrl.loopback.eq(0)
 
@@ -390,14 +381,14 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += status.link.scrambling.eq(scrambling)
 
                 # When 0x00 0x00 is received, wait until 8 have arrived and 16 sent after the first one has arrived.
-                with m.If(lane.rx_symbol == 0):
+                with m.If(rx.idle):
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
                         m.d.rx += tx_idl_count.eq(0)
                     with m.Else():
                         m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
-                            m.d.rx += tx.idle.eq(0)
+                            #m.d.rx += tx.idle.eq(0)
                             m.d.rx += rx_idl_count.eq(0)
                             m.d.rx += tx_idl_count.eq(0)
                             reset_ts_count_and_jump(State.L0)
@@ -497,8 +488,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     with m.Else():
                         reset_ts_count_and_jump(State.Configuration)
                 
-                # Wait for 8 IDL symbols, count 16 sent IDL symbols after first has been received, then go to L0 and reset idle_to_rlock_transitioned
-                with m.If(lane.rx_symbol == Cat(Ctrl.IDL, Ctrl.IDL)):
+                # Wait for 8 D0.0 symbols, count 16 sent D0.0 symbols after first has been received, then go to L0 and reset idle_to_rlock_transitioned
+                with m.If(rx.idle):
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
                         m.d.rx += tx_idl_count.eq(0)
@@ -506,7 +497,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                         m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
                             m.d.rx += status.idle_to_rlock_transitioned.eq(0)
-                            m.d.rx += tx.idle.eq(0)
+                            #m.d.rx += tx.idle.eq(0)
                             m.d.rx += rx_idl_count.eq(0)
                             m.d.rx += tx_idl_count.eq(0)
                             reset_ts_count_and_jump(State.L0)
@@ -527,9 +518,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             with m.State(State.L0): # Page 297, implementation for 5 GT/s and higher lane counts missing
                 m.d.rx += debug_state.eq(State.L0)
                 # TBD
-                m.d.rx += debug_state.eq(State.L0)
                 m.d.rx += status.link.up.eq(1)
-                with m.If(lane.rx_has_symbol(Ctrl.STP) | lane.rx_has_symbol(Ctrl.SDP)):
+                with m.If(rx.has_symbol(Ctrl.STP) | rx.has_symbol(Ctrl.SDP)):
                     m.d.rx += status.idle_to_rlock_transitioned.eq(0)
                 
                 with m.If(rx.ts_received):

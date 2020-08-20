@@ -124,6 +124,9 @@ class PLL1Ch(Elaboratable):
         return m
 
 class DTR(Elaboratable):
+    # See TN1266
+    CONVERSION_TABLE = [-58, -56, -54, -52, -45, -44, -43, -42, -41, -40, -39, -38, -37, -36, -30, -20, -10, -4, 0, 4, 10, 21, 22, 23, 24, 25, 26, 27, 28, 29, 40, 50, 60, 70, 76, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 116, 120, 124, 128, 132]
+
     def __init__(self, start=Signal(), temperature=Signal(6), valid=Signal()):
         self.start = start
         self.temperature = temperature

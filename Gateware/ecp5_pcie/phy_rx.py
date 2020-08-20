@@ -18,28 +18,41 @@ class PCIePhyRX(Elaboratable):
     vlane : Signal
         Last valid lane # received
     """
-    def __init__(self, lane):
-        assert lane.ratio == 2
-        self.lane = lane
+    def __init__(self, raw_lane, decoded_lane):
+        assert raw_lane.ratio == 2
+        self.raw_lane = raw_lane
+        self.decoded_lane = decoded_lane
         self.ts = Record(ts_layout)
         self.vlink = Signal(8)
         self.vlane = Signal(5)
         self.consecutive = Signal()
         self.inverted = Signal()
+    
+    """
+    Whether the symbol is in the current RX data
+    """
+    def has_symbol(self, symbol):
+        has = False
+        for i in range(self.decoded_lane.ratio):
+            has |= self.decoded_lane.rx_symbol[i * 9 : i * 9 + 9] == symbol
+        return has
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Docstring
         m = Module()
 
-        lane = self.lane
+        raw_lane = self.raw_lane
+        decoded_lane = self.decoded_lane
         ts = self.ts
         vlink = self.vlink
         vlane = self.vlane
         ts_last = Record(ts_layout)
         ts_current = Record(ts_layout)
 
+        self.idle = decoded_lane.rx_symbol == 0
+
         # The two received symbols
-        symbol1 = lane.rx_symbol[0: 9]
-        symbol2 = lane.rx_symbol[9:18]
+        symbol1 = raw_lane.rx_symbol[0: 9]
+        symbol2 = raw_lane.rx_symbol[9:18]
 
         # Whether a TS is being received
         self.recv_tsn = recv_tsn = Signal()
@@ -141,7 +154,7 @@ class PCIePhyRX(Elaboratable):
                     m.d.rx += ts.valid.eq(0)
                     m.d.rx += inverted.eq(0)
                     with m.If(last_invert == 0):
-                        m.d.rx += lane.rx_invert.eq(~lane.rx_invert) # Maybe it should change the disparity instead?
+                        m.d.rx += raw_lane.rx_invert.eq(~raw_lane.rx_invert) # Maybe it should change the disparity instead?
                         m.d.rx += last_invert.eq(200)
                 
                 # If its not inverted, then a valid TS was received.

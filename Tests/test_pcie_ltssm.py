@@ -11,8 +11,8 @@ from ecp5_pcie.ltssm import *
 from ecp5_pcie.utils.parts import DTR
 from ecp5_pcie.lfsr import PCIeLFSR
 
-# Usage: python test_pcie_2.py run
-#        python test_pcie_2.py grab
+# Usage: python test_pcie_ltssm.py run
+#        python test_pcie_ltssm.py grab
 
 CAPTURE_DEPTH = 1024
 
@@ -24,7 +24,7 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = True
-TESTING_STATE = State.Configuration_Idle
+TESTING_STATE = State.L0
 
 # Record LTSSM state transitions
 FSM_LOG = True
@@ -44,7 +44,7 @@ class SERDESTestbench(Elaboratable):
         m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
-        m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
+        m.submodules.phy_rx = phy_rx = PCIePhyRX(aligner, lane)
         m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
         #m.submodules.lfsr = lfsr = PCIeLFSR(0, 1)
         #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
@@ -59,7 +59,7 @@ class SERDESTestbench(Elaboratable):
         #    phy_tx.ts.ctrl.eq(0)
         #]
         
-        m.d.rx += lane.enable.eq(ltssm.status.link.scrambling)
+        m.d.rx += lane.enable.eq(ltssm.status.link.scrambling & ~phy_tx.sending_ts)
 
         m.d.comb += [
             #lane.rx_invert.eq(0),
@@ -161,11 +161,11 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(32)
             
-            #with m.If(ltssm.debug_state != TESTING_STATE):
-            #    m.d.rx += time_since_state.eq(0)
-            #with m.Else():
-            #    m.d.rx += time_since_state.eq(time_since_state + 1)
-            m.d.rx += time_since_state.eq(ltssm.status.link.scrambling)
+            with m.If(ltssm.debug_state != TESTING_STATE):
+                m.d.rx += time_since_state.eq(0)
+            with m.Else():
+                m.d.rx += time_since_state.eq(time_since_state + 1)
+            #m.d.rx += time_since_state.eq(ltssm.status.link.scrambling)
             #m.d.rx += time_since_state.eq(ltssm.rx_idl_count_total)
             #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
 
@@ -173,7 +173,7 @@ class SERDESTestbench(Elaboratable):
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,
                 lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
-                ), "rx", (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
+                ), "rx")#, (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
 
         elif FSM_LOG:
             # Keep track of time in 8 nanosecond increments
@@ -194,7 +194,7 @@ class SERDESTestbench(Elaboratable):
             # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
             # preceding number is number of bits
             debug = UARTDebugger(uart, 25, CAPTURE_DEPTH, Cat(
-                last_state, ltssm.debug_state, time, realtime_rx, ltssm.rx_idl_count_total, dtr.temperature, Signal(1), dtr.valid,
+                last_state, ltssm.debug_state, time, realtime_rx, Signal(32), dtr.temperature, Signal(1), dtr.valid,
                 phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
                 ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         
