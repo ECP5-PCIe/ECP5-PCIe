@@ -20,6 +20,7 @@ class PCIePhyTX(Elaboratable):
         self.lane = lane
         self.ts = Record(ts_layout)
         self.idle = Signal()
+        self.sending_ts = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -48,12 +49,15 @@ class PCIePhyTX(Elaboratable):
 
             with m.State("IDLE"):
 
+                m.d.rx += self.sending_ts.eq(0)
+
                 # Send SKP ordered sets when the accumulator is above 0
                 with m.If(skp_accumulator > 0):
                     m.d.rx += [
                         symbol1.eq(Ctrl.COM),
                         symbol2.eq(Ctrl.SKP),
                         skp_accumulator.eq(skp_accumulator - 1),
+                        self.sending_ts.eq(1),
                     ]
                     m.next = "SKP-ORDERED-SET"
 

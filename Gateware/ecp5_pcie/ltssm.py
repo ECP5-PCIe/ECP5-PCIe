@@ -531,6 +531,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += status.link.up.eq(1)
                 with m.If(lane.rx_has_symbol(Ctrl.STP) | lane.rx_has_symbol(Ctrl.SDP)):
                     m.d.rx += status.idle_to_rlock_transitioned.eq(0)
+                
+                with m.If(rx.ts_received):
+                    m.next = State.Recovery
 
 
         return m
