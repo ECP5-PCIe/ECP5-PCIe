@@ -106,7 +106,7 @@ if __name__ == "__main__":
                     print("Error\t", end=end)
 
                 # Convert symbol data to a string which represents it
-                elif True:
+                elif symbol & 0x100 == 0x100:
                     if xa == 27 and ya == 7:
                         print("STP\t", end=end)
                         indent = indent + 1
@@ -134,12 +134,12 @@ if __name__ == "__main__":
                             print("COM\t", end=end)
                         if ya == 7:
                             print("EIE\t", end=end)
-                    else:
-                        print("{}{}{}{}.{} \t{}".format(" " * 0 * indent,
-                            "L" if symbol & (1 << 9) else " ",
-                            "K" if symbol & (1 << 8) else "D",
-                            xa, ya, hex(symbol & 0xFF).split("x")[1]
-                        ), end=end)
+                else:
+                    print("{}{}{}{}.{} \t{}".format(" " * 0 * indent,
+                        "L" if symbol & (1 << 9) else " ",
+                        "K" if symbol & (1 << 8) else "D",
+                        xa, ya, hex(symbol & 0xFF).split("x")[1]
+                    ), end=end)
                 return indent
 
             # Returns selected bit range from a byte array

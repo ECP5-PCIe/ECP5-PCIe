@@ -39,5 +39,13 @@ ltssm_layout = [
     ]),
     ("recv_err", 2),
     ("presence",1),
-    ("idle_to_rlock_transitioned", 8)
+    ("idle_to_rlock_transitioned", 8),
+]
+
+dllp_layout = [
+    ("type", 4),        # Header type
+    ("type_meta", 3),   # Metadata, for example virtual channel or power management type
+    ("header", 8),      # Header, for FCs
+    ("data", 12),       # Data for FCs or AckNak_Seq_Num
+    ("valid", 1),       # CRC valid
 ]

@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.build import *
-from .serdes import K, D, Ctrl, PCIeSERDESInterface
+from nmigen.lib.fifo import SyncFIFOBuffered
+from .serdes import K, D, Ctrl, PCIeSERDESInterface, PCIeScrambler
 from .layouts import ts_layout
 
 class PCIePhyRX(Elaboratable):
@@ -17,8 +18,14 @@ class PCIePhyRX(Elaboratable):
         Last valid link # received
     vlane : Signal
         Last valid lane # received
+    fifo_depth : int
+        How deep the FIFO to store received data is
+    ready : Signal()
+        Asserted by LTSSM to enable data reception
+    fifo : SyncFIFOBuffered()
+        Received data gets stored in here
     """
-    def __init__(self, raw_lane, decoded_lane):
+    def __init__(self, raw_lane : PCIeSERDESInterface, decoded_lane : PCIeScrambler, fifo_depth = 256):
         assert raw_lane.ratio == 2
         self.raw_lane = raw_lane
         self.decoded_lane = decoded_lane
@@ -27,6 +34,8 @@ class PCIePhyRX(Elaboratable):
         self.vlane = Signal(5)
         self.consecutive = Signal()
         self.inverted = Signal()
+        self.ready = Signal()
+        self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
     
     """
     Whether the symbol is in the current RX data
@@ -53,6 +62,12 @@ class PCIePhyRX(Elaboratable):
         # The two received symbols
         symbol1 = raw_lane.rx_symbol[0: 9]
         symbol2 = raw_lane.rx_symbol[9:18]
+        decoded_symbol1 = decoded_lane.rx_symbol[0: 9]
+        decoded_symbol2 = raw_lane.rx_symbol[9:18]
+
+        # Store received data
+        m.submodules.fifo = fifo = self.fifo
+        m.d.rx += fifo.w_en.eq(0)
 
         # Whether a TS is being received
         self.recv_tsn = recv_tsn = Signal()
@@ -65,6 +80,9 @@ class PCIePhyRX(Elaboratable):
 
         # Whether the TS is inverted
         inverted = self.inverted # Signal()
+
+        # Whether currently a DLLP or TLP is being received
+        receiving_data = Signal()
 
         # Limit inversion rate, because inverting takes a while to propagate.
         # Otherwise it will oscillate and return garbage.
@@ -82,7 +100,7 @@ class PCIePhyRX(Elaboratable):
         # There is also a SKP ordered set composed of COM SKP SKP SKP
         # A comma aligner before the RX causes the comma to be aligned to symbol1.
         with m.FSM(domain="rx"):
-            with m.State("COMMA"):
+            with m.State("IDLE"):
                 m.d.rx += self.ts_received.eq(0)
 
                 with m.If(symbol1 == Ctrl.COM):
@@ -101,12 +119,25 @@ class PCIePhyRX(Elaboratable):
                         m.next = "TSn-LANE-FTS"
                         m.d.rx += recv_tsn.eq(1)
                      # Ignore the comma otherwise, could be a different ordered set
-                #with m.Else():
+                with m.Elif(self.ready): # Might overflow
+                    with m.If((decoded_symbol1 == Ctrl.SDP) | (decoded_symbol1 == Ctrl.STP) | receiving_data):
+                        with m.If((decoded_symbol1 == Ctrl.COM) | (decoded_symbol2 == Ctrl.SKP)):
+                            m.d.rx += fifo.w_en.eq(0)
+                        with m.Else():
+                            m.d.rx += [
+                                receiving_data.eq(1),
+                                fifo.w_data.eq(Cat(decoded_symbol1, decoded_symbol2)),
+                                fifo.w_en.eq(1),
+                            ]
+                    with m.If((decoded_symbol2 == Ctrl.END) | (decoded_symbol2 == Ctrl.EDB)):
+                        m.d.rx += receiving_data.eq(0)
+
+                #9with m.Else():
                 #    m.d.rx += recv_tsn.eq(0)
 
             # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
             with m.State("SKP"):
-                m.next = "COMMA"
+                m.next = "IDLE"
 
             # Lane and Fast Training Sequence count
             with m.State("TSn-LANE-FTS"):
@@ -149,7 +180,7 @@ class PCIePhyRX(Elaboratable):
             # When its not inverted, accept it.
             # Additionally it can be checked whether two consecutive TSs are valid by uncommenting the if statement
             with m.State("TSn-ID4"):
-                m.next = "COMMA"
+                m.next = "IDLE"
                 with m.If(inverted):
                     m.d.rx += ts.valid.eq(0)
                     m.d.rx += inverted.eq(0)

@@ -11,8 +11,8 @@ class PCIePhy(Elaboratable):
     """
     def __init__(self, lane):
         self.descrambled_lane = PCIeScrambler(lane)
-        self.rx = PCIePhyRX(lane, self.descrambled_lane)
-        self.tx = PCIePhyTX(self.descrambled_lane)
+        self.rx = PCIePhyRX(lane, self.descrambled_lane, 16)
+        self.tx = PCIePhyTX(self.descrambled_lane,16 )
         self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
 
     def elaborate(self, platform: Platform) -> Module:
@@ -24,6 +24,20 @@ class PCIePhy(Elaboratable):
             self.descrambled_lane,
             self.ltssm,
         ]
+
+
+        # TESTING
+        
+        m.d.rx += self.tx.fifo.w_data.eq(self.rx.fifo.r_data)
+        m.d.rx += self.tx.fifo.w_en.eq(self.rx.fifo.r_rdy)
+        m.d.rx += self.rx.fifo.r_en.eq(self.rx.fifo.r_rdy)
+        #counter = Signal(8)
+        #m.d.rx += counter.eq(counter + 1)
+        #m.d.rx += self.tx.fifo.w_data.eq(counter)
+        #m.d.rx += self.tx.fifo.w_en.eq(counter < 128)
+
+
+
 
         m.d.rx += self.descrambled_lane.rx_align.eq(1)
 

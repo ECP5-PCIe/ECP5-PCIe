@@ -137,6 +137,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # The Link is now down and the TX SERDES is put into electrical idle
                 m.d.rx += status.link.up.eq(0)
                 m.d.rx += tx.eidle.eq(0b11)
+                m.d.rx += rx.ready.eq(0)
+                m.d.rx += tx.ready.eq(0)
 
                 # Enable scrambling
                 m.d.rx += scrambling.eq(1)
@@ -418,7 +420,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # Send TS1 ordered sets with same Link and Lane as configured
                 m.d.rx += [
                     tx.ts.valid.eq(1),
-                    tx.ts.ts_id.eq(0)
+                    tx.ts.ts_id.eq(0),
+                    status.link.up.eq(0), # Not sure if this is right
+                    rx.ready.eq(0),
+                    tx.ready.eq(0),
                 ]
 
                 # If a TS is received with the link and lane numbers matching the configured ones and 8 such have been received, go to Recovery.RcvrCfg
@@ -519,6 +524,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += debug_state.eq(State.L0)
                 # TBD
                 m.d.rx += status.link.up.eq(1)
+                m.d.rx += rx.ready.eq(1)
+                m.d.rx += tx.ready.eq(1)
+                
                 with m.If(rx.has_symbol(Ctrl.STP) | rx.has_symbol(Ctrl.SDP)):
                     m.d.rx += status.idle_to_rlock_transitioned.eq(0)
                 

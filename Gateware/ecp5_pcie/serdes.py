@@ -218,6 +218,7 @@ class PCIeScrambler(PCIeSERDESInterface):
         m = Module()
 
         # Scramble transmitted and received data, skip on SKP, reset on COM
+        # TODO: Add case for when only one SKP character is received
 
         def scramble(input, output, enable):
             lfsr = PCIeLFSR(self.ratio, input[0:9] == Ctrl.COM, input[9:18] != Ctrl.SKP)

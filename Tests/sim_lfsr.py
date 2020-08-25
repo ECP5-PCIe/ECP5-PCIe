@@ -28,5 +28,5 @@ if __name__ == "__main__":
 
     sim.add_sync_process(process, domain="rx") # or sim.add_sync_process(process), see below
 
-    with sim.write_vcd("test.vcd", "test.gtkw", traces=sim._signal_names):
+    with sim.write_vcd("test.vcd", "test.gtkw"):
         sim.run()
