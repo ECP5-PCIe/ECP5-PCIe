@@ -3,7 +3,6 @@ from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
 from nmigen.lib.fifo import AsyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
-from configparser import ConfigParser
 
 
 __all__ = ["LatticeECP5PCIeSERDES"]
@@ -279,6 +278,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         }
 
         ch_config = {
+            # CH0 ­— protocol
             "p_CHx_PROTOCOL"          :"PCIE",
             "p_CHx_PCIE_MODE"         :"0b1",
 
