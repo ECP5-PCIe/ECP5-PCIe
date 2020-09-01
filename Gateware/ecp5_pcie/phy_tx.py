@@ -19,6 +19,8 @@ class PCIePhyTX(Elaboratable):
         How deep the FIFO to store data to transmit is
     ready : Signal()
         Asserted by LTSSM to enable data transmission
+    in_symbols : Signal(18)
+        Symbols to send from higher layers
     fifo : SyncFIFOBuffered()
         Data to transmit goes in here
     """
@@ -29,7 +31,8 @@ class PCIePhyTX(Elaboratable):
         self.idle = Signal()
         self.sending_ts = Signal()
         self.ready = Signal()
-        self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
+        self.in_symbols = Signal(18)
+        #self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -43,8 +46,8 @@ class PCIePhyTX(Elaboratable):
         symbol2 = lane.tx_symbol[9:18]
 
         # Store data to be sent
-        m.submodules.fifo = fifo = self.fifo
-        m.d.rx += fifo.r_en.eq(0)
+        #m.submodules.fifo = fifo = self.fifo
+        #m.d.rx += fifo.r_en.eq(0)
 
         skp_counter = Signal(range(769))
         skp_accumulator = Signal(4)
@@ -93,15 +96,17 @@ class PCIePhyTX(Elaboratable):
 
                 # Transmit data from higher layers
                 with m.Elif(self.ready): # TODO: If things dont get fully transmitted, then maybe r_rdy goes to not ready 1 clock cycle too soon.
-                    with m.If(fifo.r_rdy):
-                        m.d.rx += fifo.r_en.eq(1)
-                        cnt = Signal(8)
-                        m.d.rx += cnt.eq(cnt + 1)
-                        m.d.rx += symbol1.eq(fifo.r_data[0:9])
-                        m.d.rx += symbol2.eq(fifo.r_data[9:18])
-                    with m.Else():
-                        m.d.rx += symbol1.eq(0)
-                        m.d.rx += symbol2.eq(0)
+                    m.d.rx += symbol1.eq(self.in_symbols[0:9])
+                    m.d.rx += symbol2.eq(self.in_symbols[9:18])
+                    #with m.If(fifo.r_rdy):
+                    #    m.d.rx += fifo.r_en.eq(1)
+                    #    cnt = Signal(8)
+                    #    m.d.rx += cnt.eq(cnt + 1)
+                    #    m.d.rx += symbol1.eq(fifo.r_data[0:9])
+                    #    m.d.rx += symbol2.eq(fifo.r_data[9:18])
+                    #with m.Else():
+                    #    m.d.rx += symbol1.eq(0)
+                    #    m.d.rx += symbol2.eq(0)
 
                 # Transmit idle data
                 with m.Elif(self.idle):

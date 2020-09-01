@@ -25,10 +25,16 @@ class Type(IntEnum):
 class PCIeDLLPTransmitter(Elaboratable):
     """
     PCIe Data Link Layer Packet transmitter
+
+    Parameters
+    ----------
+    out_symbols : Signal(18)
+        Symbols to TX Phy
     """
-    def __init__(self, lane : PCIeScrambler):
+    def __init__(self, out_symbols : Signal):
         self.dllp   = Record(dllp_layout)
-        self.__lane = lane
+        self.out_symbols = out_symbols
+        assert len(out_symbols) == 18
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -41,14 +47,14 @@ class PCIeDLLPTransmitter(Elaboratable):
         last_symbol = Signal(9)
 
         m.d.rx += last_symbol.eq(out_symbols[1])
-        m.d.rx += self.__lane.tx_symbol.eq(Cat(last_symbol, out_symbols[0]))
+        m.d.rx += self.out_symbols.eq(Cat(last_symbol, out_symbols[0]))
 
         # Delay 1 clock cycle for CRC calculation
         m.d.rx += out_symbols[0].eq(symbols[0])
         m.d.rx += out_symbols[1].eq(symbols[1])
 
         # Set up CRC (PCIe 1.1 page 167)
-        m.submodules.crc = crc = DomainRenamer("rx")(CRC(Cat(symbols[0][0:8], symbols[1][0:8]), 0xFFFF, 0x100B, 16))
+        m.submodules.crc = crc = DomainRenamer("rx")(CRC(Cat(symbols[0][0:8], symbols[1][0:8]), 0xFFFF, 0x100B, 16, Signal()))
 
         # See figure 3-11.
         crc_out = ~Cat(crc.output[::-1])
@@ -113,7 +119,7 @@ class PCIeDLLPReceiver(Elaboratable):
         aligned_symbols = Cat(last_symbol[0:8], symbols[0][0:8])
 
         # Set up CRC (PCIe 1.1 page 167)
-        m.submodules.crc = crc = DomainRenamer("rx")(CRC(aligned_symbols, 0xFFFF, 0x100B, 16))
+        m.submodules.crc = crc = DomainRenamer("rx")(CRC(aligned_symbols, 0xFFFF, 0x100B, 16, Signal()))
         m.submodules.fifo = self.fifo
 
         # See figure 3-11.

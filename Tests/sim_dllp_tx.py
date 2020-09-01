@@ -7,8 +7,8 @@ import random
 if __name__ == "__main__":
     m = Module()
 
-    m.submodules.lane = lane = PCIeSERDESInterface(2)
-    m.submodules.dllpt = dllpt = PCIeDLLPTransmitter(lane)
+    output = Signal(18)
+    m.submodules.dllpt = dllpt = PCIeDLLPTransmitter(output)
 
     sim = Simulator(m)
     sim.add_clock(1/125e6, domain="rx")
@@ -20,8 +20,8 @@ if __name__ == "__main__":
     
     def process():
         yield dllpt.dllp.eq(dllp_1)
-        print(hex((yield lane.tx_symbol[0:9])), end="\t")
-        print(hex((yield lane.tx_symbol[9:18])))
+        print(hex((yield output[0:9])), end="\t")
+        print(hex((yield output[9:18])))
         #print(hex((yield dllpt.symbols[0])), end="\t")
         #print(hex((yield dllpt.symbols[1])))
         #print(hex((yield dllpt.crc_out)))
@@ -29,8 +29,8 @@ if __name__ == "__main__":
         yield
         #yield dllpt.dllp.valid.eq(0)
         for _ in range(20):
-            print(hex((yield lane.tx_symbol[0:9])), end="\t")
-            print(hex((yield lane.tx_symbol[9:18])))
+            print(hex((yield output[0:9])), end="\t")
+            print(hex((yield output[9:18])))
             #print(hex((yield dllpt.symbols[0])), end="\t")
             #print(hex((yield dllpt.symbols[1])))
             #print(hex((yield dllpt.crc_out)))
