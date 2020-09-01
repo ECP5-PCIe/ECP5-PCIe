@@ -34,20 +34,25 @@ class CRC(Elaboratable):
 
         last = self.output
         for i in range(len(self.input)):
+            # The input value is the input data XORed with the last bit of the CRC
             in_val = self.input[i] ^ last[self.crc_size - 1]
 
             # All values to XOR
             in_vals = [None] * self.crc_size
             for j in range(self.crc_size):
+                # If the polynomial is 1 at a bit, XOR it with that bit in the input value
                 if (self.polynomial & (1 << j)) == 0:
                     in_vals[j] = 0
                 else:
                     in_vals[j] = in_val
 
-            current = Signal(self.crc_size)
+            # Current CRC value
+            current = Signal(self.crc_size) # This needs to be a signal, otherwise the simulation doesn't work
+            # Shift the last CRC value and XOR all bits of it which are 1 in the polynomial with the input value
             m.d.comb += current.eq((Cat(last) << 1)[0:self.crc_size] ^ Cat(in_vals))
             last = current
         
+        # Setting the output to the initial value resets it
         with m.If(self.reset):
             m.d.sync += self.output.eq(self.init)
         with m.Else():

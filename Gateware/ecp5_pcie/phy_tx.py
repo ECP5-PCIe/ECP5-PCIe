@@ -75,6 +75,7 @@ class PCIePhyTX(Elaboratable):
                     m.next = "SKP-ORDERED-SET"
 
                 with m.Elif(ts.valid):
+                    m.d.rx += self.sending_ts.eq(1)
                     m.d.rx += lane.tx_e_idle.eq(0b0)
                     m.next = "TSn-LANE-FTS"
                     m.d.rx += [
