@@ -4,6 +4,7 @@ from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
 from ecp5_pcie.ecp5_serdes_geared_x2 import LatticeECP5PCIeSERDESx2
+from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.phy_rx import PCIePhyRX
@@ -22,7 +23,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx2()
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
         #m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
         #lane = serdes.lane
@@ -81,32 +82,32 @@ class SERDESTestbench(Elaboratable):
             m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
             m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
 
-        with m.Elif(cntr == 6):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        with m.Elif(cntr == 7):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-
-        with m.Elif(cntr == 12):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
-        with m.Elif(cntr == 13):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        with m.Elif(cntr == 14):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
-            
-        with m.Elif(cntr == 20):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
-        with m.Elif(cntr == 21):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        with m.Elif(cntr == 22):
-            m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-            m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
+        #with m.Elif(cntr == 6):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        #with m.Elif(cntr == 7):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+#
+        #with m.Elif(cntr == 12):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
+        #with m.Elif(cntr == 13):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        #with m.Elif(cntr == 14):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
+        #    
+        #with m.Elif(cntr == 20):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
+        #with m.Elif(cntr == 21):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
+        #with m.Elif(cntr == 22):
+        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
+        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
 
         with m.Else():
             m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
@@ -128,9 +129,9 @@ class SERDESTestbench(Elaboratable):
 
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         refclkcounter = Signal(32)
         m.d.sync += refclkcounter.eq(refclkcounter + 1)
@@ -181,13 +182,14 @@ import serial
 
 
 import os
+os.environ["NMIGEN_ENV_Diamond"] = "/usr/local/diamond/3.11_x64/bin/lin64/diamond_env"
 os.environ["NMIGEN_verbose"] = "Yes"
 
 
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
         if arg == "run":
-            FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True, nextpnr_opts="")
+            FPGA.VersaECP55GPlatform(toolchain="Trellis").build(SERDESTestbench(TS_TEST), do_program=True)
 
         if arg == "grab":
             port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)

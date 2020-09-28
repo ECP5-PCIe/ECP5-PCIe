@@ -10,6 +10,8 @@ if __name__ == "__main__":
     output = Signal(18)
     m.submodules.dllpt = dllpt = PCIeDLLPTransmitter(output)
 
+    m.d.comb += dllpt.send.eq(1)
+
     sim = Simulator(m)
     sim.add_clock(1/125e6, domain="rx")
 

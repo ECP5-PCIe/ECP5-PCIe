@@ -5,6 +5,7 @@ from .phy_rx import PCIePhyRX
 from .phy_tx import PCIePhyTX
 from .ltssm import PCIeLTSSM
 from .dllp import PCIeDLLPTransmitter, PCIeDLLPReceiver
+from .dll import PCIeDLL
 
 class PCIePhy(Elaboratable):
     """
@@ -17,6 +18,7 @@ class PCIePhy(Elaboratable):
         self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
         self.dllp_rx = PCIeDLLPReceiver(self.descrambled_lane)
         self.dllp_tx = PCIeDLLPTransmitter(self.tx.in_symbols)
+        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -29,13 +31,14 @@ class PCIePhy(Elaboratable):
         ]
         m.submodules.dlrx=    self.dllp_rx
         m.submodules.dltx=    self.dllp_tx
+        m.submodules.dll =    self.dll
         #    self.dllp_tx,
 
 
         # TESTING
         
-        m.d.rx += self.dllp_tx.dllp.eq(self.dllp_rx.fifo.r_data)
-        m.d.rx += self.dllp_rx.fifo.r_en.eq(1)
+        #m.d.rx += self.dllp_tx.dllp.eq(self.dllp_rx.fifo.r_data)
+        #m.d.rx += self.dllp_rx.fifo.r_en.eq(1)
         #m.d.rx += self.tx.fifo.w_en.eq(self.rx.fifo.r_rdy)
         #m.d.rx += self.rx.fifo.r_en.eq(self.rx.fifo.r_rdy)
         #counter = Signal(8)

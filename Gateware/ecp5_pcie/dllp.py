@@ -8,7 +8,7 @@ from .serdes import K, D, Ctrl, PCIeScrambler
 from .crc import CRC
 
 # Page 137 in PCIe 1.1
-class Type(IntEnum):
+class DLLPType(IntEnum):
     Ack         = 0,
     Nak         = 1,
     PM          = 2,
@@ -30,16 +30,20 @@ class PCIeDLLPTransmitter(Elaboratable):
     ----------
     out_symbols : Signal(18)
         Symbols to TX Phy
+    send : Signal()
+        True when sending DLLPs
     """
     def __init__(self, out_symbols : Signal):
-        self.dllp   = Record(dllp_layout)
+        self.dllp = Record(dllp_layout)
         self.out_symbols = out_symbols
+        self.send = Signal()
+        self.started_sending = Signal()
         assert len(out_symbols) == 18
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        dllp = self.dllp
+        dllp = Record(dllp_layout) # self.dllp
 
         # TODO: Maybe rethink CRC implementation to make this unnecessary.
         symbols = [Signal(9), Signal(9)]
@@ -64,10 +68,13 @@ class PCIeDLLPTransmitter(Elaboratable):
         # It does work but it is very hacky
         with m.FSM(domain="rx"):
             with m.State("Idle"):
+                with m.If(self.dllp.valid):
+                    m.d.rx += dllp.eq(self.dllp)
                 m.d.rx += crc.reset.eq(0)
-                with m.If(dllp.valid):
+                with m.If(dllp.valid & self.send):
                     m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
                     m.d.rx += symbols[1].eq(dllp.header[2:8])
+                    m.d.rx += self.started_sending.eq(1)
                     m.next = "tx-1"
                 #with m.Else():
                 m.d.rx += out_symbols[0].eq(0)
@@ -76,6 +83,7 @@ class PCIeDLLPTransmitter(Elaboratable):
                 m.d.rx += symbols[0].eq(Cat(dllp.data[8:12], Const(0, 2), dllp.header[0:2]))
                 m.d.rx += symbols[1].eq(dllp.data[0:8])
                 m.d.rx += last_symbol.eq(Ctrl.SDP)
+                m.d.rx += self.started_sending.eq(0)
                 m.next = "tx-2"
             with m.State("tx-2"):
                 m.next = "tx-3"
@@ -86,10 +94,13 @@ class PCIeDLLPTransmitter(Elaboratable):
                 m.next = "tx-4"
             with m.State("tx-4"):
                 m.d.rx += out_symbols[0].eq(Ctrl.END)
-                with m.If(dllp.valid):
+                with m.If(self.dllp.valid):
+                    m.d.rx += dllp.eq(self.dllp)
+                with m.If(dllp.valid & self.send):
                     m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
                     m.d.rx += symbols[1].eq(dllp.header[2:8])
                     m.d.rx += crc.reset.eq(0)
+                    m.d.rx += self.started_sending.eq(1)
                     m.next = "tx-1"
                 with m.Else():
                     m.d.rx += crc.reset.eq(1)
@@ -136,17 +147,33 @@ class PCIeDLLPReceiver(Elaboratable):
                     m.d.rx += self.dllp.type.eq(symbols[1][4:8])
                     m.d.rx += self.dllp.type_meta.eq(symbols[1][0:3])
                     m.next = "rx-1"
+
             with m.State("rx-1"):
                 m.d.rx += self.dllp.header.eq(Cat(symbols[1][6:8], symbols[0][0:6]))
                 m.d.rx += Cat(self.dllp.data[8:12]).eq(symbols[1][0:4])
-                m.next = "rx-2"
+
+                # Just in case there's some bad symbols in there, abort. Checking for the first symbol should be sufficient.
+                # DLLPs are transmitted every few dozen microseconds anyway.
+                with m.If(symbols[0][8]):
+                    m.next = "Idle"
+                with m.Else():
+                    m.next = "rx-2"
+
             with m.State("rx-2"):
                 m.d.rx += Cat(self.dllp.data[0:8]).eq(symbols[0][0:8])
-                m.next = "rx-3"
+
+                with m.If(symbols[0][8]):
+                    m.next = "Idle"
+                with m.Else():
+                    m.next = "rx-3"
+
             with m.State("rx-3"):
-                # CRC input is just the lane data
-                m.d.rx += self.dllp.valid.eq((symbols[1] == Ctrl.END) & (crc_out == crc.input))
-                m.d.rx += self.fifo.w_en.eq(1)
-                m.next = "Idle"
+                with m.If(symbols[0][8]):
+                    m.next = "Idle"
+                with m.Else():
+                    # CRC input is just the lane data
+                    m.d.rx += self.dllp.valid.eq((symbols[1] == Ctrl.END) & (crc_out == crc.input))
+                    m.d.rx += self.fifo.w_en.eq(1)
+                    m.next = "Idle"
 
         return m

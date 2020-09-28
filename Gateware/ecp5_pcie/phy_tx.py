@@ -67,8 +67,17 @@ class PCIePhyTX(Elaboratable):
 
                 m.d.rx += self.sending_ts.eq(0)
 
+                # Whether higher levels are sending DLLPs or TLPs
+                sending_old = Signal()
+                # When a TLP starts, set sending_data to 1 and reset it when it ends.
+                # (self.in_symbols[0:9] == Ctrl.SDP) | 
+                sending_data = ((self.in_symbols[0:9] == Ctrl.STP)
+                | sending_old) & ~((symbol2 == Ctrl.END) | (symbol2 == Ctrl.EDB))
+
+                m.d.rx += sending_old.eq(sending_data)
+
                 # Send SKP ordered sets when the accumulator is above 0
-                with m.If(skp_accumulator > 0):
+                with m.If((skp_accumulator > 0) & ~sending_data):
                     m.d.rx += [
                         symbol1.eq(Ctrl.COM),
                         symbol2.eq(Ctrl.SKP),

@@ -49,3 +49,12 @@ dllp_layout = [
     ("data", 12),       # Data for FCs or AckNak_Seq_Num
     ("valid", 1),       # CRC valid
 ]
+
+dll_layout = [
+    ("PH", 12),
+    ("PD", 12),
+    ("NPH", 12),
+    ("NPD", 12),
+    ("CPLH", 12),
+    ("CPLD", 12),
+]
