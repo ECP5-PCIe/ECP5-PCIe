@@ -46,6 +46,21 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         # For later use
         sending_tlp = Signal()
 
+        # Get update DLLPs
+        with m.If(~self.ltssm.status.link.up):
+            pass
+        with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_P)):
+            m.d.rx += self.credits_rx.PH.eq(self.rx.dllp.header)
+            m.d.rx += self.credits_rx.PD.eq(self.rx.dllp.data)
+            m.d.rx += got_p.eq(1)
+        with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_NP)):
+            m.d.rx += self.credits_rx.NPH.eq(self.rx.dllp.header)
+            m.d.rx += self.credits_rx.NPD.eq(self.rx.dllp.data)
+            m.d.rx += got_np.eq(1)
+        with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_Cpl)):
+            m.d.rx += self.credits_rx.CPLH.eq(self.rx.dllp.header)
+            m.d.rx += self.credits_rx.CPLD.eq(self.rx.dllp.data)
+
         # Data Link Layer State Machine, Page 129 in PCIe 1.1
         with m.FSM(domain="rx"):
             with m.State(State.DL_Inactive):

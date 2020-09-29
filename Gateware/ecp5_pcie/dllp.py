@@ -38,6 +38,7 @@ class PCIeDLLPTransmitter(Elaboratable):
         self.out_symbols = out_symbols
         self.send = Signal()
         self.started_sending = Signal()
+        self.enable = Signal(reset = 1)
         assert len(out_symbols) == 18
 
     def elaborate(self, platform: Platform) -> Module:
@@ -50,61 +51,62 @@ class PCIeDLLPTransmitter(Elaboratable):
         out_symbols = [Signal(9), Signal(9)]
         last_symbol = Signal(9)
 
-        m.d.rx += last_symbol.eq(out_symbols[1])
-        m.d.rx += self.out_symbols.eq(Cat(last_symbol, out_symbols[0]))
-
-        # Delay 1 clock cycle for CRC calculation
-        m.d.rx += out_symbols[0].eq(symbols[0])
-        m.d.rx += out_symbols[1].eq(symbols[1])
-
         # Set up CRC (PCIe 1.1 page 167)
         m.submodules.crc = crc = DomainRenamer("rx")(CRC(Cat(symbols[0][0:8], symbols[1][0:8]), 0xFFFF, 0x100B, 16, Signal()))
 
-        # See figure 3-11.
-        crc_out = ~Cat(crc.output[::-1])
-        m.d.rx += crc.reset.eq(0)
+        with m.If(1): #self.enable): TODO: revisit this if necessary
+            m.d.rx += last_symbol.eq(out_symbols[1])
+            m.d.rx += self.out_symbols.eq(Cat(last_symbol, out_symbols[0]))
 
-        # TODO: Do it properly instead of guessing around.
-        # It does work but it is very hacky
-        with m.FSM(domain="rx"):
-            with m.State("Idle"):
-                with m.If(self.dllp.valid):
-                    m.d.rx += dllp.eq(self.dllp)
-                m.d.rx += crc.reset.eq(0)
-                with m.If(dllp.valid & self.send):
-                    m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
-                    m.d.rx += symbols[1].eq(dllp.header[2:8])
-                    m.d.rx += self.started_sending.eq(1)
-                    m.next = "tx-1"
-                #with m.Else():
-                m.d.rx += out_symbols[0].eq(0)
-                m.d.rx += last_symbol.eq(0)
-            with m.State("tx-1"):
-                m.d.rx += symbols[0].eq(Cat(dllp.data[8:12], Const(0, 2), dllp.header[0:2]))
-                m.d.rx += symbols[1].eq(dllp.data[0:8])
-                m.d.rx += last_symbol.eq(Ctrl.SDP)
-                m.d.rx += self.started_sending.eq(0)
-                m.next = "tx-2"
-            with m.State("tx-2"):
-                m.next = "tx-3"
-            with m.State("tx-3"):
-                m.d.rx += out_symbols[0].eq(crc_out[0:8])
-                m.d.rx += out_symbols[1].eq(crc_out[8:16])
-                m.d.rx += crc.reset.eq(1)
-                m.next = "tx-4"
-            with m.State("tx-4"):
-                m.d.rx += out_symbols[0].eq(Ctrl.END)
-                with m.If(self.dllp.valid):
-                    m.d.rx += dllp.eq(self.dllp)
-                with m.If(dllp.valid & self.send):
-                    m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
-                    m.d.rx += symbols[1].eq(dllp.header[2:8])
+            # Delay 1 clock cycle for CRC calculation
+            m.d.rx += out_symbols[0].eq(symbols[0])
+            m.d.rx += out_symbols[1].eq(symbols[1])
+
+            # See figure 3-11.
+            crc_out = ~Cat(crc.output[::-1])
+            m.d.rx += crc.reset.eq(0)
+
+            # TODO: Do it properly instead of guessing around.
+            # It does work but it is very hacky
+            with m.FSM(domain="rx"):
+                with m.State("Idle"):
+                    with m.If(self.dllp.valid):
+                        m.d.rx += dllp.eq(self.dllp)
                     m.d.rx += crc.reset.eq(0)
-                    m.d.rx += self.started_sending.eq(1)
-                    m.next = "tx-1"
-                with m.Else():
+                    with m.If(dllp.valid & self.send):
+                        m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
+                        m.d.rx += symbols[1].eq(dllp.header[2:8])
+                        m.d.rx += self.started_sending.eq(1)
+                        m.next = "tx-1"
+                    #with m.Else():
+                    m.d.rx += out_symbols[0].eq(0)
+                    m.d.rx += last_symbol.eq(0)
+                with m.State("tx-1"):
+                    m.d.rx += symbols[0].eq(Cat(dllp.data[8:12], Const(0, 2), dllp.header[0:2]))
+                    m.d.rx += symbols[1].eq(dllp.data[0:8])
+                    m.d.rx += last_symbol.eq(Ctrl.SDP)
+                    m.d.rx += self.started_sending.eq(0)
+                    m.next = "tx-2"
+                with m.State("tx-2"):
+                    m.next = "tx-3"
+                with m.State("tx-3"):
+                    m.d.rx += out_symbols[0].eq(crc_out[0:8])
+                    m.d.rx += out_symbols[1].eq(crc_out[8:16])
                     m.d.rx += crc.reset.eq(1)
-                    m.next = "Idle"
+                    m.next = "tx-4"
+                with m.State("tx-4"):
+                    m.d.rx += out_symbols[0].eq(Ctrl.END)
+                    with m.If(self.dllp.valid):
+                        m.d.rx += dllp.eq(self.dllp)
+                    with m.If(dllp.valid & self.send):
+                        m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
+                        m.d.rx += symbols[1].eq(dllp.header[2:8])
+                        m.d.rx += crc.reset.eq(0)
+                        m.d.rx += self.started_sending.eq(1)
+                        m.next = "tx-1"
+                    with m.Else():
+                        m.d.rx += crc.reset.eq(1)
+                        m.next = "Idle"
 
         return m
 

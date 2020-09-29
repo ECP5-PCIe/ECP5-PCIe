@@ -32,6 +32,7 @@ class PCIePhyTX(Elaboratable):
         self.sending_ts = Signal()
         self.ready = Signal()
         self.in_symbols = Signal(18)
+        self.enable_higher_layers = Signal()
         #self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
 
     def elaborate(self, platform: Platform) -> Module:
@@ -75,10 +76,12 @@ class PCIePhyTX(Elaboratable):
                 | sending_old) & ~((symbol2 == Ctrl.END) | (symbol2 == Ctrl.EDB))
 
                 m.d.rx += sending_old.eq(sending_data)
+                m.d.rx += self.enable_higher_layers.eq(1)
 
                 # Send SKP ordered sets when the accumulator is above 0
                 with m.If((skp_accumulator > 0) & ~sending_data):
                     m.d.rx += [
+                        self.enable_higher_layers.eq(0),
                         symbol1.eq(Ctrl.COM),
                         symbol2.eq(Ctrl.SKP),
                         skp_accumulator.eq(skp_accumulator - 1),

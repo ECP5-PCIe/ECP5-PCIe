@@ -1,6 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from .ecp5_serdes_geared_x2 import LatticeECP5PCIeSERDESx2
+from .ecp5_serdes import LatticeECP5PCIeSERDES
 from .serdes import PCIeSERDESAligner
 from .phy import PCIePhy
 
@@ -9,7 +10,8 @@ class LatticeECP5PCIePhy(Elaboratable):
     A PCIe Phy for the ECP5 for PCIe Gen1 x1
     """
     def __init__(self):
-        self.__serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
+        #self.__serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
+        self.__serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
         self.__aligner = DomainRenamer("rx")(PCIeSERDESAligner(self.__serdes.lane)) # Aligner for aligning COM symbols
         self.phy = PCIePhy(self.__aligner)
 

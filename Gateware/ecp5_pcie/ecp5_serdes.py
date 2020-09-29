@@ -136,14 +136,54 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         tx_lol   = Signal() # TX PLL Loss of Lock
         tx_lol_s = Signal()
 
+        # Reset Signals
+        serdes_tx_reset = Signal()
+        serdes_rx_reset = Signal()
+        pcs_reset       = Signal()
+
+        with m.FSM(domain="rx"): # Inspirations taken from LUNA
+            with m.State("init"):
+                m.d.rx += [
+                    serdes_tx_reset.eq(1),
+                    serdes_rx_reset.eq(1),
+                    pcs_reset      .eq(1),
+                ]
+                m.next = "start-tx"
+
+            with m.State("start-tx"):
+                m.d.rx += [
+                    serdes_tx_reset.eq(0),
+                    serdes_rx_reset.eq(1),
+                    pcs_reset      .eq(1),
+                ]
+                with m.If(~tx_lol_s):
+                    m.next = "start-rx"
+
+            with m.State("start-rx"):
+                m.d.rx += [
+                    serdes_tx_reset.eq(0),
+                    serdes_rx_reset.eq(0),
+                    pcs_reset      .eq(1),
+                ]
+                with m.If(~rx_lol_s):
+                    m.next = "start-pcs-done"
+
+            with m.State("start-pcs-done"):
+                m.d.rx += [
+                    serdes_tx_reset.eq(0),
+                    serdes_rx_reset.eq(0),
+                    pcs_reset      .eq(0),
+                ]
+
+
         # Clock domain crossing for status signals and tx data
         m.submodules += [
             FFSynchronizer(rx_los, rx_los_s, o_domain="rx"),
             FFSynchronizer(rx_lol, rx_lol_s, o_domain="rx"),
             FFSynchronizer(rx_lsm, rx_lsm_s, o_domain="rx"),
             
-#            FFSynchronizer(tx_lol, tx_lol_s, o_domain="tx"),
-#            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="tx"),
+            FFSynchronizer(tx_lol, tx_lol_s, o_domain="rx"),
+#            FFSynchronizer(self.tx_bus, tx_bus_s, o_domain="rx"),
         ]
 
         # Connect the signals to the lanes signals
@@ -236,7 +276,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # DCU — reset
             "i_D_FFC_MACRO_RST"       :0,
             "i_D_FFC_DUAL_RST"        :0,
-            "i_D_FFC_TRST"            :0,
+            "i_D_FFC_TRST"            :serdes_tx_reset,
 
             # DCU — clocking
             "i_D_REFCLKI"             :self.ref_clk,
@@ -279,7 +319,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         ch_config = {
             # CH0 ­— protocol
-            "p_CHx_PROTOCOL"          :"PCIE",
+            "p_CHx_PROTOCOL"          :"PCIe",
             "p_CHx_PCIE_MODE"         :"0b1",
 
             # RX CH ­— power management
@@ -287,7 +327,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "i_CHx_FFC_RXPWDNB"       :1,
 
             # RX CH ­— reset
-            "i_CHx_FFC_RRST"          :0,
+            "i_CHx_FFC_RRST"          :serdes_rx_reset,
             "i_CHx_FFC_LANE_RX_RST"   :0,
 
             # RX CH ­— input
@@ -317,7 +357,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "p_CHx_RX_DCO_CK_DIV"     :"0b000",   # DIV/1
             "p_CHx_PDEN_SEL"          :"0b1",     # phase detector disabled on ~LOS
             #"p_CHx_SEL_SD_RX_CLK"     :"0b1",     # FIFO driven by recovered clock
-            "p_CHx_SEL_SD_RX_CLK"     :"0b0",     # FIFO driven by FF_EBRD_CLK
+            "p_CHx_SEL_SD_RX_CLK"     :"0b1",     # FIFO driven by FF_EBRD_CLK
             "p_CHx_CTC_BYPASS"        :"0b0",     # bypass CTC FIFO
 
             # FIFO bridge clocking
@@ -389,7 +429,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "i_CHx_FFC_TXPWDNB"       :1,
 
             # TX CH ­— reset
-            "i_CHx_FFC_LANE_TX_RST"   :0,
+            "i_CHx_FFC_LANE_TX_RST"   :pcs_reset,
 
             # TX CH ­— output
 

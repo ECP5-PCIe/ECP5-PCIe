@@ -249,7 +249,7 @@ if __name__ == "__main__":
                         if word & (1 << 9):
                             print("L ", end=" ")
                         if word & 0x1ff == 0x1ee:
-                            print("E", end="")
+                            print("E")
                             #print("{}KEEEEEEEE".format(
                             #    "L" if word & (1 <<  9) else " ",
                             #), end=" ")
