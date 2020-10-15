@@ -37,7 +37,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
     tx_clk_i : Signal
         Clock for the transmit FIFO.
     """
-    def __init__(self, speed5GT=1, DCU=0, CH=0):
+    def __init__(self, speed5GT=True, DCU=0, CH=0):
 
         self.rx_clk = Signal()  # recovered word clock
 

@@ -19,12 +19,10 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(CH=1)
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed5GT=False, CH=1)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
 
         m.d.comb += [
-        #    serdes.txd.eq(K(28,5)),
-            #lane.rx.eq(1), Crucial?
             lane.rx_invert.eq(0),
             lane.rx_align.eq(1),
         ]
@@ -38,36 +36,8 @@ class SERDESTestbench(Elaboratable):
             ClockSignal("tx").eq(serdes.tx_clk),
         ]
         
-        cntr = Signal(5)
-        #with m.If(cntr == 0):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        #with m.Elif(cntr == 1):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        #with m.Elif(cntr == 2):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.EIE)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.EDB)
-        #with m.Elif(cntr == 3):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.STP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SDP)
-        #with m.Elif(cntr == 4):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.EIE)
-        #with m.Elif(cntr == 5):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.EDB)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.EDB)
-        #with m.Elif(cntr == 6):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.EIE)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.EIE)
-        #with m.Elif(cntr == 7):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.END)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.END)
-        #with m.Elif(cntr == 8):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
-        #with m.Else():
-        #    m.d.tx += lane.tx_symbol.eq(cntr)
+        cntr = Signal(1)
+
         with m.If(cntr[0]):
             m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
             m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
@@ -79,49 +49,7 @@ class SERDESTestbench(Elaboratable):
             m.d.tx += lane.tx_symbol[18:27].eq(Ctrl.IDL)
             m.d.tx += lane.tx_symbol[27:36].eq(Ctrl.IDL)
 
-        #with m.Elif(cntr == 6):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        #with m.Elif(cntr == 7):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-#
-        #with m.Elif(cntr == 12):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
-        #with m.Elif(cntr == 13):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        #with m.Elif(cntr == 14):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
-        #    
-        #with m.Elif(cntr == 20):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.COM)
-        #with m.Elif(cntr == 21):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.SKP)
-        #with m.Elif(cntr == 22):
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.SKP)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
-
-        #with m.Else():
-        #    m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.IDL)
-        #    m.d.tx += lane.tx_symbol[9:18].eq(Ctrl.IDL)
-        #m.d.tx += lane.tx_symbol[0:9].eq(Ctrl.COM)
-        #m.d.tx += lane.tx_symbol[9:18].eq(cntr)
         m.d.tx += cntr.eq(cntr + 1)
-        #with m.FSM(domain="tx"):
-        #    with m.State("1"):
-        #        m.d.tx += lane.tx_symbol.eq(Ctrl.COM)
-        #        m.next = "2"
-        #    with m.State("2"):
-        #        m.d.tx += lane.tx_symbol.eq(Ctrl.SKP)
-        #        m.d.tx += cntr.eq(cntr + 1)
-        #        with m.If(cntr == 3):
-        #            m.d.tx += cntr.eq(0)
-        #            m.next = "1"
 
 
 
@@ -130,41 +58,11 @@ class SERDESTestbench(Elaboratable):
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
         m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
-        #refclkcounter = Signal(32)
-        #m.d.sync += refclkcounter.eq(refclkcounter + 1)
-        #rxclkcounter = Signal(32)
-        #m.d.rx += rxclkcounter.eq(rxclkcounter + 1)
-        #txclkcounter = Signal(32)
-        #m.d.tx += txclkcounter.eq(txclkcounter + 1)
-
         leds = []
         for i in range(8):
             leds.append(platform.request("led",i))
 
         m.d.rx += Cat(leds).eq(lane.rx_symbol[0:8] ^ lane.rx_symbol[8:16] ^ lane.rx_symbol[16:24] ^ lane.rx_symbol[24:32] ^ Cat(lane.rx_symbol[32:36], Signal(4)))
-
-        #m.d.rx += Cat(leds).eq(lane.rx_symbol[0:8] ^ lane.rx_symbol[24:32])
-        #led_att1 = platform.request("led",0)
-        #led_att2 = platform.request("led",1)
-        #led_sta1 = platform.request("led",2)
-        #led_sta2 = platform.request("led",3)
-        #led_err1 = platform.request("led",4)
-        #led_err2 = platform.request("led",5)
-        #led_err3 = platform.request("led",6)
-        #led_err4 = platform.request("led",7)
-        #m.d.rx += lane.det_enable.eq(1)
-        #m.d.comb += [
-        #    led_att1.eq(~(refclkcounter[25])),
-        #    led_att2.eq(~(serdes.lane.rx_aligned)),
-        #    led_sta1.eq(~(rxclkcounter[25])),
-        #    led_sta2.eq(~(txclkcounter[25])),
-        #    led_err1.eq(~(serdes.lane.rx_present)),
-        #    led_err2.eq(~(serdes.lane.rx_locked | serdes.lane.tx_locked)),
-        #    led_err3.eq(~(lane.det_valid)),#serdes.rxde0)),
-        #    led_err4.eq(~(lane.det_status)),#serdes.rxce0)),
-        #]
-        triggered = Const(1)
-        #m.d.tx += triggered.eq((triggered ^ ((lane.rx_symbol[0:9] == Ctrl.EIE) | (lane.rx_symbol[9:18] == Ctrl.EIE))))
 
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
@@ -172,10 +70,8 @@ class SERDESTestbench(Elaboratable):
 
 
         #m.d.rx += lane.tx_e_idle.eq(1)
-        debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6), lane.rx_symbol[9:18], lane.rx_valid[1], Signal(6), lane.rx_symbol[18:27], lane.rx_valid[2], Signal(6), lane.rx_symbol[27:36], lane.rx_valid[3], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
-        #debug = UARTDebugger(uart, 2, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
-        # You need to add the SERDES within the SERDES as a self. attribute for this to work
-        #debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(serdes.serdes.lane.rx_symbol[0:9], cntr == 0, Signal(6), Signal(9), lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rxf", triggered) # lane.rx_present & lane.rx_locked)
+        debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6), lane.rx_symbol[9:18], lane.rx_valid[1], Signal(6), lane.rx_symbol[18:27], lane.rx_valid[2], Signal(6), lane.rx_symbol[27:36], lane.rx_valid[3], Signal(6)), "rx")
+        
         m.submodules += debug
 
         return m

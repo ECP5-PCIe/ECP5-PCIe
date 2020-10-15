@@ -68,7 +68,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         assert CH == 0 or CH == 1
         self.CH = CH
 
-        if(self.speed5GT):
+        if(speed5GT):
             print("Error: 5 GT/s currently not implemented in ecp5_serdes.py")
             assert False
         self.speed5GT = speed5GT
