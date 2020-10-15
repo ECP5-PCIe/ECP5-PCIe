@@ -45,6 +45,11 @@ class SERDESTestbench(Elaboratable):
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
         m.submodules += uart
+        
+        platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
+        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         if NO_DEBUG:
             pass

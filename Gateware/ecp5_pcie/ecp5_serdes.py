@@ -71,6 +71,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         lane = self.lane
         m.submodules += lane # Add the PCIe Lane as a submodule
 
+        # TODO: Change this for 5 Gbit/s
         platform.add_clock_constraint(self.rx_clk, 250e6 / self.gearing) # For NextPNR, set the maximum clock frequency such that errors are given
         platform.add_clock_constraint(self.tx_clk, 250e6 / self.gearing)
 

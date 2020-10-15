@@ -147,13 +147,14 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
             m.submodules += FFSynchronizer(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle), Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle), o_domain="tx", stages=4)
         
         # No CDC
+        # TODO: Check if this actually works
         if False:
             m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(
                 Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
 
         # AsyncFIFOBuffered
         if True:
-            tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=24, depth=10, r_domain="tx", w_domain="rx")
+            tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=self.ratio * 12, depth=10, r_domain="tx", w_domain="rx")
             m.d.comb += tx_fifo.w_data.eq(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle))
             m.d.comb += Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle).eq(tx_fifo.r_data)
             m.d.comb += tx_fifo.r_en.eq(1)
