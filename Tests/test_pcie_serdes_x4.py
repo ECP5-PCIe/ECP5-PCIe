@@ -9,23 +9,18 @@ from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.phy_rx import PCIePhyRX
 def S(x, y): return (y << 5) | x
 
-# Usage: python test_pcie_2.py run
-#        python test_pcie_2.py grab
+# Usage: python test_pcie_serdes_x4.py run
+#        python test_pcie_serdes_x4.py grab
+#        python test_pcie_serdes_x4.py speed # Speed test to see how good it compiles on a 45F Speed 6 device
 
 CAPTURE_DEPTH = 256
-TS_TEST = False
 
 class SERDESTestbench(Elaboratable):
-    def __init__(self, tstest=False):
-        self.tstest = tstest
-    
     def elaborate(self, platform):
         m = Module()
 
         m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(CH=1)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
-        #m.submodules.phy_rx = phy_rx = PCIePhyRX(lane)
-        #lane = serdes.lane
 
         m.d.comb += [
         #    serdes.txd.eq(K(28,5)),
@@ -131,9 +126,9 @@ class SERDESTestbench(Elaboratable):
 
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         #refclkcounter = Signal(32)
         #m.d.sync += refclkcounter.eq(refclkcounter + 1)
@@ -141,7 +136,14 @@ class SERDESTestbench(Elaboratable):
         #m.d.rx += rxclkcounter.eq(rxclkcounter + 1)
         #txclkcounter = Signal(32)
         #m.d.tx += txclkcounter.eq(txclkcounter + 1)
-#
+
+        leds = []
+        for i in range(8):
+            leds.append(platform.request("led",i))
+
+        m.d.rx += Cat(leds).eq(lane.rx_symbol[0:8] ^ lane.rx_symbol[8:16] ^ lane.rx_symbol[16:24] ^ lane.rx_symbol[24:32] ^ Cat(lane.rx_symbol[32:36], Signal(4)))
+
+        #m.d.rx += Cat(leds).eq(lane.rx_symbol[0:8] ^ lane.rx_symbol[24:32])
         #led_att1 = platform.request("led",0)
         #led_att2 = platform.request("led",1)
         #led_sta1 = platform.request("led",2)
@@ -171,6 +173,7 @@ class SERDESTestbench(Elaboratable):
 
         #m.d.rx += lane.tx_e_idle.eq(1)
         debug = UARTDebugger(uart, 8, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6), lane.rx_symbol[9:18], lane.rx_valid[1], Signal(6), lane.rx_symbol[18:27], lane.rx_valid[2], Signal(6), lane.rx_symbol[27:36], lane.rx_valid[3], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
+        #debug = UARTDebugger(uart, 2, CAPTURE_DEPTH, Cat(lane.rx_symbol[0:9], lane.rx_valid[0], Signal(6)), "rx", triggered) # lane.rx_present & lane.rx_locked)
         # You need to add the SERDES within the SERDES as a self. attribute for this to work
         #debug = UARTDebugger(uart, 4, CAPTURE_DEPTH, Cat(serdes.serdes.lane.rx_symbol[0:9], cntr == 0, Signal(6), Signal(9), lane.rx_valid[0] | lane.rx_valid[1], Signal(6)), "rxf", triggered) # lane.rx_present & lane.rx_locked)
         m.submodules += debug
@@ -190,8 +193,14 @@ os.environ["NMIGEN_verbose"] = "Yes"
 
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
+        if arg == "speed":
+            plat = FPGA.VersaECP55GPlatform(toolchain="Trellis")
+            plat.device = "LFE5UM-45F"
+            plat.speed = 6
+            plat.build(SERDESTestbench(), do_program=False)
+
         if arg == "run":
-            FPGA.VersaECP55GPlatform(toolchain="Trellis").build(SERDESTestbench(TS_TEST), do_program=True)
+            FPGA.VersaECP55GPlatform(toolchain="Trellis").build(SERDESTestbench(), do_program=True)
 
         if arg == "grab":
             port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)

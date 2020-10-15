@@ -167,7 +167,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
         self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio, comma=Cat(Ctrl.COM, 1))
         m.submodules += self.slip
-        
+
         m.d.comb += [
             self.slip.en.eq(self.rx_align),
             self.slip.i.eq(Cat(

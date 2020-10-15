@@ -55,7 +55,13 @@ class SymbolSlip(Elaboratable): # From Yumewatari
         symbol_buffer = Signal(width * 2) # Holds current symbols and symbols from last clock cycle
         m.d.rx += symbol_buffer.eq(Cat(symbol_buffer[width:], self.i))
         offset = Signal(range(word_size))
-        m.d.rx += self.o.eq(symbol_buffer.bit_select(offset * symbol_size, width))
+
+        # This is way faster than a bit_select since that requires multiplication by 10.
+        with m.Switch(offset):
+            for i in range(word_size):
+                with m.Case(i):
+                    m.d.rx += self.o.eq(symbol_buffer[symbol_size * i:symbol_size * i + width]) 
+
         for i in range(word_size):
             with m.If(symbol_buffer[i * symbol_size:(i + 1) * symbol_size] == self.__comma):
                 m.d.rx += offset.eq(Mux(self.en, i, 0)) # Set offset to specific value, but only if comma symbol is received. Otherwise let offset stay like before.
