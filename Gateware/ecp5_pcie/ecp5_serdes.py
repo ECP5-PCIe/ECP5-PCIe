@@ -349,7 +349,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH ­— reset
             "i_CHx_FFC_RRST"          :serdes_rx_reset,
-            "i_CHx_FFC_LANE_RX_RST"   :0,
+            "i_CHx_FFC_LANE_RX_RST"   :pcs_reset,
 
             # RX CH ­— input
             "i_CHx_FFC_SB_INV_RX"     :rx_inv,
