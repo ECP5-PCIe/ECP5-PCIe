@@ -99,7 +99,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform(toolchain="Trellis").build(SERDESTestbench(), do_program=True)
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
 

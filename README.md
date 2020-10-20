@@ -16,6 +16,8 @@ Execute `python setup.py develop` in the Gateware folder
 ## SETUP
 https://github.com/ECP5-PCIe/ECP5-PCIe/wiki/Setup
 
+If you have a Versa board, additionally run `openocd -f ispCLOCK/ispCLOCK-200MHz.cfg` to setup the ispCLOCK chip. For that you need to set J50 to connect pins 2-4 and 5-6. After you are done, set them back to 1-2 and 3-5.
+
 ## RUN
 - Enable PCIe on the connected device (for example on the ROCKPro64 execute `pci init` in u-boot)
 - Execute `python test_pcie_phy.py run` in the Tests folder to upload the gateware to the ECP5

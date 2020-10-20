@@ -129,9 +129,9 @@ class SERDESTestbench(Elaboratable):
 
 
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
 
         refclkcounter = Signal(32)
         m.d.sync += refclkcounter.eq(refclkcounter + 1)
