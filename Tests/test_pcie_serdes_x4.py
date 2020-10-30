@@ -19,7 +19,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed5GT=False, CH=1)
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False, CH=0)
         m.submodules.aligner = lane = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane))
 
         m.d.comb += [

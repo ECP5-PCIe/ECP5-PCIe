@@ -29,6 +29,7 @@ class SERDESTestbench(Elaboratable):
 
         ltssm = phy.ltssm
         lane = phy.descrambled_lane
+        #lane = ecp5_phy.aligner
 
         # Temperature sensor, the chip gets kinda hot
         refclkcounter = Signal(32)
@@ -68,10 +69,10 @@ class SERDESTestbench(Elaboratable):
             with m.Else():
                 m.d.rx += time_since_state.eq(time_since_state + 1)
 
-            m.submodules += UARTDebugger(uart, 14, CAPTURE_DEPTH, Cat(
+            m.submodules += UARTDebugger(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,
-                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(4), Signal(4), phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
+                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(4), Signal(2), phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
                 ), "rx")
 
         return m
@@ -92,7 +93,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
@@ -163,19 +164,21 @@ if __name__ == "__main__":
                 # R = RX symbol
                 # T = TX symbol
                 # v = RX valid
-                chars = port.read(14 * 2 + 1)
+                chars = port.read(19 * 2 + 1)
                 try:
                     data = int(chars, 16)
                 except:
                     print("err " + str(chars))
                     data = 0
                 time = get_bytes(data, 0, 8)
-                symbols = [get_bits(data, 64 + 9 * i, 9) for i in range(4)]
-                valid = [get_bits(data, 64 + 9 * 4, 1), get_bits(data, 33 + 9 * 4, 1)]
+                symbols = [get_bits(data, 64 + 9 * i, 9) for i in range(8)]
+                valid = [get_bits(data, 64 + 9 * 8, 1), get_bits(data, 33 + 9 * 8, 1)]
+                ltssm = get_bits(data, 17 * 8, 8)
                 print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
                 for i in range(len(symbols)):
                     if i < 2:
                         print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
                     else:
                         print_symbol(symbols[i], 0, end="\t")
-                print(DTR.CONVERSION_TABLE[get_bits(data, 64 + 9 * 4 + 6, 6)], end=" °C\n")
+                print(ltssm, end=" \t")
+                print(DTR.CONVERSION_TABLE[get_bits(data, 64 + 9 * 8 + 6, 6)], end=" °C\n")

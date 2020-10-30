@@ -37,7 +37,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
     tx_clk_i : Signal
         Clock for the transmit FIFO.
     """
-    def __init__(self, speed5GT=True, DCU=0, CH=0):
+    def __init__(self, speed_5GTps=True, DCU=0, CH=0):
 
         self.rx_clk = Signal()  # recovered word clock
 
@@ -54,14 +54,17 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         # Bit Slip
         self.slip = Signal()
 
-        self.speed5GT = speed5GT
+        self.speed_5GTps = speed_5GTps
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2, speed5GT = self.speed5GT, DCU=self.DCU, CH=self.CH)
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+
         m.submodules += self.lane
+
+        self.lane.frequency = int(serdes.lane.frequency / 2)
 
         data_width = len(serdes.lane.rx_symbol)
 
@@ -73,8 +76,8 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
             ClockSignal("txf").eq(serdes.tx_clk),
         ]
 
-        platform.add_clock_constraint(self.rx_clk, 125e6 if self.speed5GT else 625e5) # For NextPNR, set the maximum clock frequency such that errors are given
-        platform.add_clock_constraint(self.tx_clk, 125e6 if self.speed5GT else 625e5)
+        platform.add_clock_constraint(self.rx_clk, 125e6 if self.speed_5GTps else 625e5) # For NextPNR, set the maximum clock frequency such that errors are given
+        platform.add_clock_constraint(self.tx_clk, 125e6 if self.speed_5GTps else 625e5)
 
         m.submodules.lane = lane = PCIeSERDESInterface(4)
 

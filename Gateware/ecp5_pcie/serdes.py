@@ -105,6 +105,8 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_valid    = Signal()
         self.det_status   = Signal()
 
+        self.frequency    = 0
+
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
         return m
@@ -234,8 +236,12 @@ class PCIeScrambler(PCIeSERDESInterface):
                     m.d.rx += output[9:18].eq(0xFF ^ input[9:18])
                 with m.Else():
                     m.d.rx += output[9:18].eq(lfsr.output[9:18] ^ input[9:18])
+                if (self.ratio > 2):
+                    for i in range(2, self.ratio):
+                        m.d.rx += output[9 * i : 9 * i + 9].eq(lfsr.output[9 * i : 9 * i + 9] ^ input[9 * i : 9 * i + 9])
             with m.Else():
-                m.d.rx += output[9:18].eq(input[9:18])
+                for i in range(1, self.ratio):
+                    m.d.rx += output[9 * i : 9 * i + 9].eq(input[9 * i : 9 * i + 9])
             
 
         #with m.If(self.enable & (self.__lane.rx_symbol[8] == 0)):

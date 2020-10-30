@@ -4,7 +4,7 @@ from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger
-from ecp5_pcie.ecp5_serdes import LatticeECP5PCIeSERDES
+from ecp5_pcie.ecp5_serdes_geared_x4 import LatticeECP5PCIeSERDESx4
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface, PCIeScrambler
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.ltssm import *
@@ -40,7 +40,7 @@ class SERDESTestbench(Elaboratable):
 
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
@@ -306,7 +306,7 @@ if __name__ == "__main__":
                     ts_id = (word & 0x2000000000) >> 37
                     det_status = (word & 0x4000000000) == 0x4000000000
                     det_valid = (word & 0x8000000000) == 0x8000000000
-                    print("", end= "  " if ts_valid else "E ")
+                    print("", end= "TS valid     " if ts_valid else "TS invalid   ")
                     print("link %d" % link, end= " \t" if link_valid else "E\t")
                     print("lane %d" % lane, end= " \t" if lane_valid else "E\t")
                     print("FTS num %d" % n_fts, end= " \t")

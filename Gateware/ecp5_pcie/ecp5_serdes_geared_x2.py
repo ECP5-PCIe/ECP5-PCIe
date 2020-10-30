@@ -41,6 +41,8 @@ class LatticeECP5PCIeSERDESx2(Elaboratable): # Based on Yumewatari
 
         m.submodules.lane = lane = PCIeSERDESInterface(2)
 
+        self.lane.frequency = int(125e6)
+
         # IF SOMETHING IS BROKE: Check if the TX actually transmits good data and not order-swapped data
         m.d.rxf += self.rx_clk.eq(~self.rx_clk)
         with m.If(~self.rx_clk):

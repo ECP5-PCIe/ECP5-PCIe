@@ -59,6 +59,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         # The PCIe lane with all signals necessary to control it
         self.lane = PCIeSERDESInterface(ratio=gearing)
+
+        self.lane.frequency = (speed_5GTps + 1) * int(250e6 / gearing)
         
         # Ratio, 1:1 means one symbol received per cycle, 1:2 means two symbols received per cycle, halving the output clock frequency.
         self.gearing = gearing

@@ -3,11 +3,10 @@ from nmigen.build import *
 from nmigen.lib.fifo import SyncFIFOBuffered
 from .serdes import K, D, Ctrl, PCIeSERDESInterface, PCIeScrambler
 from .layouts import ts_layout
-from .stream import StreamInterface
 
 class PCIePhyRX(Elaboratable):
     """
-    PCIe Receiver for 1:4 gearing
+    PCIe Receiver for 1:2 gearing
 
     Parameters
     ----------
@@ -27,7 +26,7 @@ class PCIePhyRX(Elaboratable):
         Received data gets stored in here
     """
     def __init__(self, raw_lane : PCIeSERDESInterface, decoded_lane : PCIeScrambler, fifo_depth = 256):
-        assert raw_lane.ratio == 4
+        assert raw_lane.ratio == 2
         self.raw_lane = raw_lane
         self.decoded_lane = decoded_lane
         self.ts = Record(ts_layout)
@@ -37,7 +36,6 @@ class PCIePhyRX(Elaboratable):
         self.inverted = Signal()
         self.ready = Signal()
         self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
-        self.stream = StreamInterface(9, raw_lane.ratio)
     
     """
     Whether the symbol is in the current RX data
@@ -58,21 +56,14 @@ class PCIePhyRX(Elaboratable):
         vlane = self.vlane
         ts_last = Record(ts_layout)
         ts_current = Record(ts_layout)
-        ratio = raw_lane.ratio
 
         self.idle = decoded_lane.rx_symbol == 0
 
-        # The received symbols
-        symbols = [raw_lane.rx_symbol[i * 9 : i * 9 + 9] for i in range(ratio)]
-        decoded_symbols = [decoded_lane.rx_symbol[i * 9 : i * 9 + 9] for i in range(ratio)]
-
-        def compare(*csymbols):
-            statement = True
-            
-            for i in range(ratio):
-                statement &= csymbols[i] == symbols[i]
-
-            return statement
+        # The two received symbols
+        symbol1 = raw_lane.rx_symbol[0: 9]
+        symbol2 = raw_lane.rx_symbol[9:18]
+        decoded_symbol1 = decoded_lane.rx_symbol[0: 9]
+        decoded_symbol2 = raw_lane.rx_symbol[9:18]
 
         # Store received data
         m.submodules.fifo = fifo = self.fifo
@@ -100,7 +91,6 @@ class PCIePhyRX(Elaboratable):
         with m.If(last_invert != 0):
             m.d.rx += last_invert.eq(last_invert - 1)
 
-        m.d.comb += Cat(self.stream.valid).eq(0)
 
         # Structure of a TS:
         # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
@@ -112,46 +102,34 @@ class PCIePhyRX(Elaboratable):
         with m.FSM(domain="rx"):
             with m.State("IDLE"):
                 m.d.rx += self.ts_received.eq(0)
-                with m.If(compare(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)):
-                    m.d.comb += Cat(self.stream.valid).eq(0)
-                with m.Elif(symbols[0] == Ctrl.COM):
-                    # Ignore the comma otherwise, could be a different ordered set
-                    with m.If((symbols[1] == Ctrl.PAD) | (symbols[1][8] == 0)):
-                        with m.If(symbols[1] == Ctrl.PAD):
-                            m.d.rx += ts_current.link.valid.eq(0)
-                            m.d.rx += recv_tsn.eq(1)
-                        with m.Elif(symbols[1][8] == 0):
-                            m.d.rx += ts_current.link.number.eq(symbols[1][:8])
-                            m.d.rx += ts_current.link.valid.eq(1)
-                            m.d.rx += recv_tsn.eq(1)
-                        
-                        m.d.rx += ts_current.valid.eq(1)
-                        m.d.rx += self.start_receive_ts.eq(1)
 
-                        # Lane and Fast Training Sequence count
+                with m.If(symbol1 == Ctrl.COM):
+                    with m.If(symbol2 == Ctrl.PAD):
+                        m.d.rx += ts_current.link.valid.eq(0)
+                        m.next = "TSn-LANE-FTS"
+                        m.d.rx += recv_tsn.eq(1)
                         
-                        with m.If(symbols[2] == Ctrl.PAD):
-                            m.d.rx += ts_current.lane.valid.eq(0)
-                        with m.Elif(symbols[2][8] == 0):
-                            m.d.rx += ts_current.lane.valid.eq(1)
-                            m.d.rx += ts_current.lane.number.eq(symbols[2][:5])
-                        with m.If(symbols[3][8] == 0):
-                            m.d.rx += ts_current.n_fts.eq(symbols[3][:8])
-                        
-                        m.next = "TSn-DATA"
+                    with m.If(symbol2 == Ctrl.SKP):
+                        m.d.rx += recv_tsn.eq(0)
+                        m.next = "SKP"
 
+                    with m.If(symbol2[8] == 0):
+                        m.d.rx += ts_current.link.number.eq(symbol2[:8])
+                        m.d.rx += ts_current.link.valid.eq(1)
+                        m.next = "TSn-LANE-FTS"
+                        m.d.rx += recv_tsn.eq(1)
+                     # Ignore the comma otherwise, could be a different ordered set
                 with m.Elif(self.ready): # Might overflow
-                    m.d.comb += Cat(self.stream.valid).eq(decoded_lane.rx_valid)
-                    with m.If((decoded_symbols[0] == Ctrl.SDP) | (decoded_symbols[0] == Ctrl.STP) | receiving_data):
-                        with m.If((decoded_symbols[0] == Ctrl.COM) | (decoded_symbols[1] == Ctrl.SKP)):
+                    with m.If((decoded_symbol1 == Ctrl.SDP) | (decoded_symbol1 == Ctrl.STP) | receiving_data):
+                        with m.If((decoded_symbol1 == Ctrl.COM) | (decoded_symbol2 == Ctrl.SKP)):
                             m.d.rx += fifo.w_en.eq(0)
                         with m.Else():
                             m.d.rx += [
                                 receiving_data.eq(1),
-                                fifo.w_data.eq(Cat(decoded_symbols[0], decoded_symbols[1])),
+                                fifo.w_data.eq(Cat(decoded_symbol1, decoded_symbol2)),
                                 fifo.w_en.eq(1),
                             ]
-                    with m.If((decoded_symbols[3] == Ctrl.END) | (decoded_symbols[3] == Ctrl.EDB)):
+                    with m.If((decoded_symbol2 == Ctrl.END) | (decoded_symbol2 == Ctrl.EDB)):
                         m.d.rx += receiving_data.eq(0)
 
                 #9with m.Else():
@@ -160,35 +138,48 @@ class PCIePhyRX(Elaboratable):
             # SKP ordered set, in COMMA there is 'COM SKP' and here is 'SKP SKP' in rx_symbol, after which it goes back to COMMA.
             with m.State("SKP"):
                 m.next = "IDLE"
+
+            # Lane and Fast Training Sequence count
+            with m.State("TSn-LANE-FTS"):
+                m.next = "TSn-DATA"
+                m.d.rx += ts_current.valid.eq(1)
+                m.d.rx += self.start_receive_ts.eq(1)
+                with m.If(symbol2[8] == 0):
+                    m.d.rx += ts_current.n_fts.eq(symbol2[:8])
+                with m.If(symbol1 == Ctrl.PAD):
+                    m.d.rx += ts_current.lane.valid.eq(0)
+                with m.If(symbol1[8] == 0):
+                    m.d.rx += ts_current.lane.valid.eq(1)
+                    m.d.rx += ts_current.lane.number.eq(symbol1[:5])
             
             # Rate and Ctrl bytes
             with m.State("TSn-DATA"):
-                m.next = "TSn-ID1"
+                m.next = "TSn-ID0"
                 m.d.rx += self.start_receive_ts.eq(0)
-                with m.If(symbols[0][8] == 0):
-                    m.d.rx += Cat(ts_current.rate).eq(symbols[0][:8])
-                with m.If(symbols[1][8] == 0):
-                    m.d.rx += Cat(ts_current.ctrl).eq(symbols[1][:5])
+                with m.If(symbol1[8] == 0):
+                    m.d.rx += Cat(ts_current.rate).eq(symbol1[:8])
+                with m.If(symbol2[8] == 0):
+                    m.d.rx += Cat(ts_current.ctrl).eq(symbol2[:5])
                 m.d.rx += ts_current.valid.eq(1)
 
-                with m.If(symbols[2] == D(10,2)):
-                    m.d.rx += ts_current.ts_id.eq(0)
-                with m.If(symbols[2] == D(5,2)):
-                    m.d.rx += ts_current.ts_id.eq(1)
-                with m.If(symbols[2] == D(21,5)):
-                    m.d.rx += ts_current.ts_id.eq(0)
-                    m.d.rx += inverted.eq(1)
-                with m.If(symbols[2] == D(26,5)):
-                    m.d.rx += ts_current.ts_id.eq(1)
-                    m.d.rx += inverted.eq(1)
-
-            # Find out whether its a TS1, a TS2 or inverted, called ID1 because some ID bits are already gotten before
-            with m.State("TSn-ID1"):
-                m.next = "TSn-ID2"
+            # Find out whether its a TS1, a TS2 or inverted
+            for i in range(4):
+                with m.State("TSn-ID%d" % i):
+                    m.next = "TSn-ID%d" % (i + 1)
+                    with m.If(symbol1 == D(10,2)):
+                        m.d.rx += ts_current.ts_id.eq(0)
+                    with m.If(symbol1 == D(5,2)):
+                        m.d.rx += ts_current.ts_id.eq(1)
+                    with m.If(symbol1 == D(21,5)):
+                        m.d.rx += ts_current.ts_id.eq(0)
+                        m.d.rx += inverted.eq(1)
+                    with m.If(symbol1 == D(26,5)):
+                        m.d.rx += ts_current.ts_id.eq(1)
+                        m.d.rx += inverted.eq(1)
 
             # When its not inverted, accept it.
             # Additionally it can be checked whether two consecutive TSs are valid by uncommenting the if statement
-            with m.State("TSn-ID2"):
+            with m.State("TSn-ID4"):
                 m.next = "IDLE"
                 with m.If(inverted):
                     m.d.rx += ts.valid.eq(0)

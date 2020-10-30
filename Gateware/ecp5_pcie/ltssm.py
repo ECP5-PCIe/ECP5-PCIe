@@ -42,7 +42,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         PCIe lane
     """
     def __init__(self, lane : PCIeSERDESInterface, tx : PCIePhyTX, rx : PCIePhyRX):
-        assert lane.ratio == 2
+        assert lane.ratio == 4
         self.lane = lane
         self.status = Record(ltssm_layout)
         self.tx = tx
@@ -58,7 +58,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
         lane = self.lane
         status = self.status
-        clocks_per_ms = 125000 # TODO: Make this non hard coded maybe
+        clocks_per_ms = 62500 # TODO: Make this non hard coded maybe
         #timer = Signal(range(64 * clocks_per_ms + 1))
 
         # Number of Training Sequences received, usage depends on FSM state
