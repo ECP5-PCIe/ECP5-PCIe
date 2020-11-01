@@ -36,8 +36,7 @@ class PCIePhyRX(Elaboratable):
         self.consecutive = Signal()
         self.inverted = Signal()
         self.ready = Signal()
-        self.fifo = DomainRenamer("rx")(SyncFIFOBuffered(width=18, depth=fifo_depth))
-        self.stream = StreamInterface(9, raw_lane.ratio)
+        self.source = StreamInterface(9, raw_lane.ratio)
     
     """
     Whether the symbol is in the current RX data
@@ -74,10 +73,6 @@ class PCIePhyRX(Elaboratable):
 
             return statement
 
-        # Store received data
-        m.submodules.fifo = fifo = self.fifo
-        m.d.rx += fifo.w_en.eq(0)
-
         # Whether a TS is being received
         self.recv_tsn = recv_tsn = Signal()
 
@@ -100,7 +95,7 @@ class PCIePhyRX(Elaboratable):
         with m.If(last_invert != 0):
             m.d.rx += last_invert.eq(last_invert - 1)
 
-        m.d.comb += Cat(self.stream.valid).eq(0)
+        m.d.comb += Cat(self.source.valid).eq(0) # TODO: Is this necessary?
 
         # Structure of a TS:
         # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
@@ -113,7 +108,7 @@ class PCIePhyRX(Elaboratable):
             with m.State("IDLE"):
                 m.d.rx += self.ts_received.eq(0)
                 with m.If(compare(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)):
-                    m.d.comb += Cat(self.stream.valid).eq(0)
+                    m.d.comb += Cat(self.source.valid).eq(0)
                 with m.Elif(symbols[0] == Ctrl.COM):
                     # Ignore the comma otherwise, could be a different ordered set
                     with m.If((symbols[1] == Ctrl.PAD) | (symbols[1][8] == 0)):
@@ -141,18 +136,8 @@ class PCIePhyRX(Elaboratable):
                         m.next = "TSn-DATA"
 
                 with m.Elif(self.ready): # Might overflow
-                    m.d.comb += Cat(self.stream.valid).eq(decoded_lane.rx_valid)
-                    with m.If((decoded_symbols[0] == Ctrl.SDP) | (decoded_symbols[0] == Ctrl.STP) | receiving_data):
-                        with m.If((decoded_symbols[0] == Ctrl.COM) | (decoded_symbols[1] == Ctrl.SKP)):
-                            m.d.rx += fifo.w_en.eq(0)
-                        with m.Else():
-                            m.d.rx += [
-                                receiving_data.eq(1),
-                                fifo.w_data.eq(Cat(decoded_symbols[0], decoded_symbols[1])),
-                                fifo.w_en.eq(1),
-                            ]
-                    with m.If((decoded_symbols[3] == Ctrl.END) | (decoded_symbols[3] == Ctrl.EDB)):
-                        m.d.rx += receiving_data.eq(0)
+                    m.d.comb += Cat(self.source.valid).eq(decoded_lane.rx_valid)
+                    m.d.comb += Cat(self.source.symbol).eq(decoded_lane.rx_symbol)
 
                 #9with m.Else():
                 #    m.d.rx += recv_tsn.eq(0)

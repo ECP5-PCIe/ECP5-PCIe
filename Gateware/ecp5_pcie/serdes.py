@@ -238,7 +238,7 @@ class PCIeScrambler(PCIeSERDESInterface):
                     m.d.rx += output[9:18].eq(lfsr.output[9:18] ^ input[9:18])
                 if (self.ratio > 2):
                     for i in range(2, self.ratio):
-                        m.d.rx += output[9 * i : 9 * i + 9].eq(lfsr.output[9 * i : 9 * i + 9] ^ input[9 * i : 9 * i + 9])
+                        m.d.rx += output[9 * i : 9 * i + 9].eq(Mux(input[9 * i : 9 * i + 9][8], 0, lfsr.output[9 * i : 9 * i + 9]) ^ input[9 * i : 9 * i + 9])
             with m.Else():
                 for i in range(1, self.ratio):
                     m.d.rx += output[9 * i : 9 * i + 9].eq(input[9 * i : 9 * i + 9])

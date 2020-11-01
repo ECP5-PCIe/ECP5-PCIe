@@ -16,9 +16,10 @@ class PCIePhy(Elaboratable):
         self.rx = PCIePhyRX(lane, self.descrambled_lane, 16)
         self.tx = PCIePhyTX(self.descrambled_lane, 16)
         self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
-        #self.dllp_rx = PCIeDLLPReceiver(self.descrambled_lane)
-        #self.dllp_tx = PCIeDLLPTransmitter(self.tx.in_symbols)
-        #self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx)
+        self.dllp_rx = PCIeDLLPReceiver(self.rx.source)
+        self.dllp_tx = PCIeDLLPTransmitter()
+
+        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -28,7 +29,13 @@ class PCIePhy(Elaboratable):
             self.tx,
             self.descrambled_lane,
             self.ltssm,
+            self.dllp_rx,
+            self.dllp_tx,
+            self.dll,
         ]
+
+        self.dllp_tx.source.connect(self.tx.sink, m.d.comb)
+
         #m.submodules.dlrx=    self.dllp_rx
         #m.submodules.dltx=    self.dllp_tx
         #m.submodules.dll =    self.dll

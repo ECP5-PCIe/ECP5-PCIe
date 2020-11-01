@@ -1,9 +1,8 @@
 from nmigen import *
 
-class StreamInterface(Elaboratable): # From Yumewatari
+class StreamInterface(): # From Yumewatari
     """
-    Interface of a single PCIe SERDES pair, connected to a single lane. Uses 1:**ratio** gearing
-    for configurable **ratio**, i.e. **ratio** symbols are transmitted per clock cycle.
+    A generic stream for connecting different modules together
 
     Parameters
     ----------
@@ -20,6 +19,26 @@ class StreamInterface(Elaboratable): # From Yumewatari
         Asserted when the receiver is ready´
     """
     def __init__(self, symbol_size, word_size):
-        self.symbol       = [Signal(symbol_size)] * word_size
-        self.valid        = [Signal()] * word_size
-        self.ready        = Signal()
+        self.symbol = [Signal(symbol_size) for _ in range(word_size)]
+        self.valid  = [Signal()            for _ in range(word_size)]
+        self.ready  =  Signal()
+    
+    """
+    Connects a source to a sink.
+    Returns nMigen statements which need to be added to a domain. For example 'm.d.comb += source.connect(sink)'
+
+    Parameters
+    ----------
+    sink : StreamInterface
+        The sink to connect this source to
+    domain : nMigen domain to add statements to
+        For example m.d.comb
+    """
+    def connect(self, sink, domain):
+        assert len(self.symbol) == len(sink.symbol)
+
+        for i in range(len(self.symbol)):
+            domain += sink.symbol[i].eq(self.symbol[i])
+            domain += sink.valid[i].eq(self.valid[i])
+
+        domain += self.ready.eq(sink.ready)

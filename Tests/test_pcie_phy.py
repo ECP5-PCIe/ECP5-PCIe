@@ -71,7 +71,7 @@ class SERDESTestbench(Elaboratable):
 
             m.submodules += UARTDebugger(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
-                lane.rx_symbol, lane.tx_symbol,
+                lane.rx_symbol, phy.dllp_tx.source.symbol,# lane.tx_symbol,
                 lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(4), Signal(2), phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
                 ), "rx")
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
@@ -105,9 +105,10 @@ if __name__ == "__main__":
                 if port.read(1) == b'\n': break
 
             # Prints a symbol as K and D codes
-            def print_symbol(symbol, indent, end=""):
+            def print_symbol(symbol, end=""):
                 xa = symbol & 0b11111
                 ya = (symbol & 0b11100000) >> 5
+
                 if symbol & 0x1ff == 0x1ee:
                     print("Error\t", end=end)
 
@@ -115,17 +116,12 @@ if __name__ == "__main__":
                 elif symbol & 0x100 == 0x100:
                     if xa == 27 and ya == 7:
                         print("STP\t", end=end)
-                        indent = indent + 1
                     elif xa == 23 and ya == 7:
                         print("PAD\t", end=end)
                     elif xa == 29 and ya == 7:
                         print("END\t", end=end)
-                        if indent > 0:
-                            indent = indent - 1
                     elif xa == 30 and ya == 7:
                         print("EDB\t", end=end)
-                        if indent > 0:
-                            indent = indent - 1
                     elif xa == 28:
                         if ya == 0:
                             print("SKP\t", end=end)
@@ -133,20 +129,24 @@ if __name__ == "__main__":
                             print("FTS\t", end=end)
                         if ya == 2:
                             print("SDP\t", end=end)
-                            indent = indent + 1
                         if ya == 3:
                             print("IDL\t", end=end)
                         if ya == 5:
                             print("COM\t", end=end)
                         if ya == 7:
                             print("EIE\t", end=end)
+                    else:
+                        print("{}{}{}.{} \t{}".format(
+                            "L" if symbol & (1 << 9) else " ",
+                            "K" if symbol & (1 << 8) else "D",
+                            xa, ya, hex(symbol & 0xFF).split("x")[1]
+                        ), end=end)
                 else:
-                    print("{}{}{}{}.{} \t{}".format(" " * 0 * indent,
+                    print("{}{}{}.{} \t{}".format(
                         "L" if symbol & (1 << 9) else " ",
                         "K" if symbol & (1 << 8) else "D",
                         xa, ya, hex(symbol & 0xFF).split("x")[1]
                     ), end=end)
-                return indent
 
             # Returns selected bit range from a byte array
             def get_bits(word, offset, count):
@@ -176,9 +176,13 @@ if __name__ == "__main__":
                 ltssm = get_bits(data, 17 * 8, 8)
                 print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
                 for i in range(len(symbols)):
-                    if i < 2:
-                        print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
-                    else:
-                        print_symbol(symbols[i], 0, end="\t")
+                    #if i < 2:
+                    #    print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
+                    #else:
+                    print_symbol(symbols[i], end="\t")
+                    if i == 3:
+                        print(end="\t")
+
+                print(end="\t")
                 print(ltssm, end=" \t")
                 print(DTR.CONVERSION_TABLE[get_bits(data, 64 + 9 * 8 + 6, 6)], end=" °C\n")

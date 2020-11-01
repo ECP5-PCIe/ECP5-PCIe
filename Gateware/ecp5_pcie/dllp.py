@@ -5,7 +5,8 @@ from nmigen.lib.fifo import SyncFIFOBuffered
 from enum import IntEnum
 from .layouts import dllp_layout
 from .serdes import K, D, Ctrl, PCIeScrambler
-from .crc import CRC
+from .crc import SingleCRC
+from .stream import StreamInterface
 
 # Page 137 in PCIe 1.1
 class DLLPType(IntEnum):
@@ -24,7 +25,7 @@ class DLLPType(IntEnum):
 
 class PCIeDLLPTransmitter(Elaboratable):
     """
-    PCIe Data Link Layer Packet transmitter
+    PCIe Data Link Layer Packet transmitter for x4 width
 
     Parameters
     ----------
@@ -33,80 +34,65 @@ class PCIeDLLPTransmitter(Elaboratable):
     send : Signal()
         True when sending DLLPs
     """
-    def __init__(self, out_symbols : Signal):
+    def __init__(self, ratio = 4):
         self.dllp = Record(dllp_layout)
-        self.out_symbols = out_symbols
+        self.source = StreamInterface(9, ratio)
         self.send = Signal()
         self.started_sending = Signal()
         self.enable = Signal(reset = 1)
-        assert len(out_symbols) == 18
+        assert len(self.source.symbol) == 4
+        self.ratio = len(self.source.symbol)
+
+        self.dllp_data = Signal(4 * 8)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        dllp = Record(dllp_layout) # self.dllp
+        dllp = self.dllp
 
-        # TODO: Maybe rethink CRC implementation to make this unnecessary.
-        symbols = [Signal(9), Signal(9)]
-        out_symbols = [Signal(9), Signal(9)]
-        last_symbol = Signal(9)
+        # The first 4 bytes
+        dllp_data = self.dllp_data# = Signal(4 * 8)
+        with m.If(dllp.valid):
+        # Damn big endian
+            m.d.comb += dllp_data.eq(Cat(
+                dllp.type_meta, Const(0, 1), dllp.type,
+                dllp.header[2:8], Const(0, 2),
+                dllp.data[8:12], Const(0, 2), dllp.header[0:2],
+                dllp.data[0:8],
+                ))
+            
+        m.submodules.crc = crc = SingleCRC(dllp_data, 0xFFFF, 0x100B, 16)
 
-        # Set up CRC (PCIe 1.1 page 167)
-        m.submodules.crc = crc = DomainRenamer("rx")(CRC(Cat(symbols[0][0:8], symbols[1][0:8]), 0xFFFF, 0x100B, 16, Signal()))
+        dllp_bytes = Cat(dllp_data, ~Cat(crc.output[::-1]))
 
-        with m.If(1): #self.enable): TODO: revisit this if necessary
-            m.d.rx += last_symbol.eq(out_symbols[1])
-            m.d.rx += self.out_symbols.eq(Cat(last_symbol, out_symbols[0]))
+        # First or second half of DLLP
+        which_half = Signal()
 
-            # Delay 1 clock cycle for CRC calculation
-            m.d.rx += out_symbols[0].eq(symbols[0])
-            m.d.rx += out_symbols[1].eq(symbols[1])
+        with m.If(dllp.valid & (self.send | which_half)):
+            for i in range(4):
+                m.d.comb += self.source.valid[i].eq(1)
 
-            # See figure 3-11.
-            crc_out = ~Cat(crc.output[::-1])
-            m.d.rx += crc.reset.eq(0)
+            with m.If(~which_half):
+                m.d.rx += which_half.eq(1)
+                m.d.comb += self.source.symbol[0].eq(Ctrl.SDP)
+                m.d.comb += self.started_sending.eq(1)
 
-            # TODO: Do it properly instead of guessing around.
-            # It does work but it is very hacky
-            with m.FSM(domain="rx"):
-                with m.State("Idle"):
-                    with m.If(self.dllp.valid):
-                        m.d.rx += dllp.eq(self.dllp)
-                    m.d.rx += crc.reset.eq(0)
-                    with m.If(dllp.valid & self.send):
-                        m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
-                        m.d.rx += symbols[1].eq(dllp.header[2:8])
-                        m.d.rx += self.started_sending.eq(1)
-                        m.next = "tx-1"
-                    #with m.Else():
-                    m.d.rx += out_symbols[0].eq(0)
-                    m.d.rx += last_symbol.eq(0)
-                with m.State("tx-1"):
-                    m.d.rx += symbols[0].eq(Cat(dllp.data[8:12], Const(0, 2), dllp.header[0:2]))
-                    m.d.rx += symbols[1].eq(dllp.data[0:8])
-                    m.d.rx += last_symbol.eq(Ctrl.SDP)
-                    m.d.rx += self.started_sending.eq(0)
-                    m.next = "tx-2"
-                with m.State("tx-2"):
-                    m.next = "tx-3"
-                with m.State("tx-3"):
-                    m.d.rx += out_symbols[0].eq(crc_out[0:8])
-                    m.d.rx += out_symbols[1].eq(crc_out[8:16])
-                    m.d.rx += crc.reset.eq(1)
-                    m.next = "tx-4"
-                with m.State("tx-4"):
-                    m.d.rx += out_symbols[0].eq(Ctrl.END)
-                    with m.If(self.dllp.valid):
-                        m.d.rx += dllp.eq(self.dllp)
-                    with m.If(dllp.valid & self.send):
-                        m.d.rx += symbols[0].eq(Cat(dllp.type_meta, Const(0, 1), dllp.type))
-                        m.d.rx += symbols[1].eq(dllp.header[2:8])
-                        m.d.rx += crc.reset.eq(0)
-                        m.d.rx += self.started_sending.eq(1)
-                        m.next = "tx-1"
-                    with m.Else():
-                        m.d.rx += crc.reset.eq(1)
-                        m.next = "Idle"
+                for i in range(self.ratio - 1):
+                    m.d.comb += self.source.symbol[i + 1].eq(dllp_bytes[8 * i : 8 * i + 8])
+
+            with m.Else():
+                m.d.rx += which_half.eq(0)
+                m.d.comb += self.started_sending.eq(0)
+                for i in range(self.ratio - 1):
+                    m.d.comb += self.source.symbol[i].eq(dllp_bytes[8 * i + (self.ratio - 1) * 8 : 8 * i + 8 + (self.ratio - 1) * 8])
+
+                m.d.comb += self.source.symbol[3].eq(Ctrl.END)
+
+        with m.Else():
+            m.d.rx += which_half.eq(0)
+            m.d.comb += self.started_sending.eq(0)
+            for i in range(4):
+                m.d.comb += self.source.valid[i].eq(0)
 
         return m
 
@@ -114,68 +100,39 @@ class PCIeDLLPReceiver(Elaboratable):
     """
     PCIe Data Link Layer Packet receiver
     """
-    def __init__(self, lane : PCIeScrambler, fifo_depth = 8):
-        self.dllp   = Record(dllp_layout)
-        self.fifo   = DomainRenamer("rx")(SyncFIFOBuffered(width=len(self.dllp), depth=fifo_depth))
-        self.__lane = lane
+    def __init__(self, source : StreamInterface):
+        self.dllp = Record(dllp_layout)
+        self.source = source
+        assert len(self.source.symbol) == 4
+        self.ratio = len(self.source.symbol)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        new_symbols = Signal(18)
-        m.d.rx += new_symbols.eq(self.__lane.rx_symbol)
-        symbols = [new_symbols[0:9], new_symbols[9:18]]
+        dllp = self.dllp
 
-        # Align such that symbols are [0 1] [2 3] [4 5]
-        last_symbol = Signal(9)
-        m.d.rx += last_symbol.eq(symbols[1])
-        aligned_symbols = Cat(last_symbol[0:8], symbols[0][0:8])
+        dllp_bytes = Signal(6 * 8)
 
-        # Set up CRC (PCIe 1.1 page 167)
-        m.submodules.crc = crc = DomainRenamer("rx")(CRC(aligned_symbols, 0xFFFF, 0x100B, 16, Signal()))
-        m.submodules.fifo = self.fifo
+        valid = Signal()
 
-        # See figure 3-11.
-        crc_out = ~Cat(crc.output[::-1])
+        m.submodules.crc = crc = SingleCRC(dllp_bytes[:4 * 8], 0xFFFF, 0x100B, 16)
 
-        m.d.rx += crc.reset.eq(self.__lane.rx_symbol[0:9] == Ctrl.SDP)
-        m.d.comb += self.fifo.w_data.eq(self.dllp)
+        with m.If(self.source.symbol[0] == Ctrl.SDP):
+            for i in range(self.ratio - 1):
+                m.d.rx += Cat(dllp_bytes[8 * i : 8 * i + 8]).eq(self.source.symbol[i + 1])
+            m.d.rx += valid.eq(0)
 
-        with m.FSM(domain="rx"):
-            with m.State("Idle"):
-                m.d.rx += self.fifo.w_en.eq(0)
-                m.d.rx += self.dllp.eq(0)
-                with m.If(symbols[0] == Ctrl.SDP):
-                    m.d.rx += self.dllp.type.eq(symbols[1][4:8])
-                    m.d.rx += self.dllp.type_meta.eq(symbols[1][0:3])
-                    m.next = "rx-1"
+        with m.Elif(self.source.symbol[3] == Ctrl.END):
+            for i in range(self.ratio - 1):
+                m.d.rx += Cat(dllp_bytes[8 * i + (self.ratio - 1) * 8: 8 * i + 8 + (self.ratio - 1) * 8]).eq(self.source.symbol[i])
+        
+        m.d.rx += valid.eq(~Cat(crc.output[::-1]) == dllp_bytes[8 * 4:])
 
-            with m.State("rx-1"):
-                m.d.rx += self.dllp.header.eq(Cat(symbols[1][6:8], symbols[0][0:6]))
-                m.d.rx += Cat(self.dllp.data[8:12]).eq(symbols[1][0:4])
-
-                # Just in case there's some bad symbols in there, abort. Checking for the first symbol should be sufficient.
-                # DLLPs are transmitted every few dozen microseconds anyway.
-                with m.If(symbols[0][8]):
-                    m.next = "Idle"
-                with m.Else():
-                    m.next = "rx-2"
-
-            with m.State("rx-2"):
-                m.d.rx += Cat(self.dllp.data[0:8]).eq(symbols[0][0:8])
-
-                with m.If(symbols[0][8]):
-                    m.next = "Idle"
-                with m.Else():
-                    m.next = "rx-3"
-
-            with m.State("rx-3"):
-                with m.If(symbols[0][8]):
-                    m.next = "Idle"
-                with m.Else():
-                    # CRC input is just the lane data
-                    m.d.rx += self.dllp.valid.eq((symbols[1] == Ctrl.END) & (crc_out == crc.input))
-                    m.d.rx += self.fifo.w_en.eq(1)
-                    m.next = "Idle"
+        with m.If(valid):
+            m.d.rx += dllp.valid.eq(1)
+            m.d.rx += dllp.type.eq(dllp_bytes[4:8])
+            m.d.rx += dllp.type_meta.eq(dllp_bytes[0:3])
+            m.d.rx += dllp.header.eq(Cat(dllp_bytes[8:14], dllp_bytes[22:24]))
+            m.d.rx += dllp.data.eq(Cat(dllp_bytes[16:21], dllp_bytes[24:32]))
 
         return m

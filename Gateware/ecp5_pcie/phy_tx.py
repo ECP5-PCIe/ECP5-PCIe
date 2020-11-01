@@ -32,7 +32,7 @@ class PCIePhyTX(Elaboratable):
         self.idle = Signal()
         self.sending_ts = Signal()
         self.ready = Signal()
-        self.stream = StreamInterface(9, lane.ratio)
+        self.sink = StreamInterface(9, lane.ratio)
         self.enable_higher_layers = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
@@ -66,7 +66,7 @@ class PCIePhyTX(Elaboratable):
             with m.If(skp_accumulator < 15):
                 m.d.rx += skp_accumulator.eq(skp_accumulator + 1)
 
-        m.d.comb += self.stream.ready.eq(0)
+        m.d.comb += self.sink.ready.eq(0) # TODO: Is this necessary?
 
         # Structure of a TS:
         # COM Link Lane n_FTS Rate Ctrl ID ID ID ID ID ID ID ID ID ID
@@ -80,13 +80,13 @@ class PCIePhyTX(Elaboratable):
                 sending_old = Signal()
                 # When a TLP starts, set sending_data to 1 and reset it when it ends.
                 # (self.in_symbols[0:9] == Ctrl.SDP) | 
-                sending_data = ((self.stream.symbol[0] == Ctrl.STP)
-                | sending_old) & ~((self.stream.symbol[3] == Ctrl.END) | (self.stream.symbol[3] == Ctrl.EDB))
+                sending_data = ((self.sink.symbol[0] == Ctrl.STP)
+                | sending_old) & ~((self.sink.symbol[3] == Ctrl.END) | (self.sink.symbol[3] == Ctrl.EDB))
 
                 m.d.rx += sending_old.eq(sending_data)
                 m.d.rx += self.enable_higher_layers.eq(1)
 
-                m.d.comb += self.stream.ready.eq(1)
+                m.d.comb += self.sink.ready.eq(1)
 
                 # Send SKP ordered sets when the accumulator is above 0
                 with m.If((skp_accumulator > 0)):# & ~sending_data):
@@ -106,22 +106,18 @@ class PCIePhyTX(Elaboratable):
                     ]
 
                     # Send PAD symbols if the link/lane is invalid, otherwise send the link/lane number.
-                    send(Ctrl.COM, Mux(ts.link.valid, ts.link.number, Ctrl.PAD), Mux(ts.lane.valid, ts.lane.number, Ctrl.PAD), ts.n_fts)
+                    send(
+                        Ctrl.COM,
+                        Mux(ts.link.valid, ts.link.number, Ctrl.PAD),
+                        Mux(ts.lane.valid, ts.lane.number, Ctrl.PAD),
+                        ts.n_fts
+                        )
 
                 # Transmit data from higher layers
-                with m.Elif(self.ready): # TODO: If things dont get fully transmitted, then maybe r_rdy goes to not ready 1 clock cycle too soon.
+                with m.Elif(self.ready):
+                    m.d.comb += self.sink.ready.eq(1)
                     for i in range(ratio):
-                        m.d.comb += symbols[i].eq(Mux(self.stream.valid[i], self.stream.symbol[i], 0))
-                        m.d.comb += self.stream.ready.eq(1)
-                    #with m.If(fifo.r_rdy):
-                    #    m.d.rx += fifo.r_en.eq(1)
-                    #    cnt = Signal(8)
-                    #    m.d.rx += cnt.eq(cnt + 1)
-                    #    m.d.rx += symbol1.eq(fifo.r_data[0:9])
-                    #    m.d.rx += symbol2.eq(fifo.r_data[9:18])
-                    #with m.Else():
-                    #    m.d.rx += symbol1.eq(0)
-                    #    m.d.rx += symbol2.eq(0)
+                        m.d.comb += symbols[i].eq(Mux(self.sink.valid[i], self.sink.symbol[i], 0))
 
                 # Transmit idle data
                 with m.Elif(self.idle):
@@ -130,8 +126,6 @@ class PCIePhyTX(Elaboratable):
                 # Otherwise go to electrical idle, if told so
                 with m.Else():
                     m.d.comb += lane.tx_e_idle.eq(self.eidle)
-                #with m.Else():
-                #    m.d.rx += lane.tx_e_idle.eq(0b11)
 
             ts_symbol = Mux(ts.ts_id, D(5, 2), D(10, 2))
 
