@@ -1,7 +1,6 @@
 from nmigen import *
 from nmigen.build import *
-from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
-from nmigen.lib.fifo import AsyncFIFOBuffered, AsyncFIFO
+from nmigen.lib.fifo import SyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
 from .ecp5_serdes import LatticeECP5PCIeSERDES
 
@@ -96,23 +95,6 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
             # m.d.rxf += self.lane.rx_valid.eq(lane.rx_valid)
 
         m.d.txf += self.tx_clk.eq(~self.tx_clk)
-        # Do NOT add an invert here! It works, checked with x1 gearing. If you do, a "COM SKP SKP SKP" will turn into a "SKP COM SKP SKP"
-        #with m.If(self.tx_clk):
-        #    m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[9:18])
-        #    m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[1])
-        #    m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[1])
-        #    m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[1])
-        #with m.Else():
-        #    m.d.txf += serdes.lane.tx_symbol    .eq(lane.tx_symbol[0:9])
-        #    m.d.txf += serdes.lane.tx_disp      .eq(lane.tx_disp[0])
-        #    m.d.txf += serdes.lane.tx_set_disp  .eq(lane.tx_set_disp[0])
-        #    m.d.txf += serdes.lane.tx_e_idle    .eq(lane.tx_e_idle[0])
-
-            # To ensure that it inputs consistent data
-            # m.d.rxf += lane.tx_symbol.eq(self.lane.tx_symbol)
-            # m.d.rxf += lane.tx_disp.eq(self.lane.tx_disp)
-            # m.d.rxf += lane.tx_set_disp.eq(self.lane.tx_set_disp)
-            # m.d.rxf += lane.tx_e_idle.eq(self.lane.tx_e_idle)
 
         m.d.txf += serdes.lane.tx_symbol    .eq(Mux(self.tx_clk, lane.tx_symbol     [data_width    :data_width * 2      ],  lane.tx_symbol  [0:data_width]))
         m.d.txf += serdes.lane.tx_disp      .eq(Mux(self.tx_clk, lane.tx_disp       [serdes.gearing:serdes.gearing * 2  ],  lane.tx_disp    [0:serdes.gearing]))
@@ -121,13 +103,16 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
 
         # CDC
-        rx_fifo = m.submodules.rx_fifo = AsyncFIFOBuffered(width=(data_width + serdes.gearing) * 2, depth=4, r_domain="rx", w_domain="rxf")
+        # TODO: Keep the SyncFIFO? Its faster but is it reliable?
+        #rx_fifo = m.submodules.rx_fifo = AsyncFIFO(width=(data_width + serdes.gearing) * 2, depth=4, r_domain="rx", w_domain="rxf")
+        rx_fifo = m.submodules.rx_fifo = DomainRenamer("rxf")(SyncFIFOBuffered(width=(data_width + serdes.gearing) * 2, depth=4))
         m.d.rxf += rx_fifo.w_data.eq(Cat(lane.rx_symbol, lane.rx_valid))
         m.d.comb += Cat(self.lane.rx_symbol, self.lane.rx_valid).eq(rx_fifo.r_data)
         m.d.comb += rx_fifo.r_en.eq(1)
         m.d.rxf += rx_fifo.w_en.eq(self.rx_clk)
 
-        tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=(data_width + serdes.gearing * 3) * 2, depth=4, r_domain="txf", w_domain="tx")
+        #tx_fifo = m.submodules.tx_fifo = AsyncFIFO(width=(data_width + serdes.gearing * 3) * 2, depth=4, r_domain="txf", w_domain="tx")
+        tx_fifo = m.submodules.tx_fifo = DomainRenamer("txf")(SyncFIFOBuffered(width=(data_width + serdes.gearing * 3) * 2, depth=4))
         m.d.comb += tx_fifo.w_data.eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
         m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(tx_fifo.r_data)
         m.d.txf  += tx_fifo.r_en.eq(self.tx_clk)
