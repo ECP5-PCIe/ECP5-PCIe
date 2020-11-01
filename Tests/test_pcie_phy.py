@@ -72,7 +72,7 @@ class SERDESTestbench(Elaboratable):
             m.submodules += UARTDebugger(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, phy.dllp_tx.source.symbol,# lane.tx_symbol,
-                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(4), Signal(2), phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
+                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
                 ), "rx")
 
         return m
@@ -173,7 +173,7 @@ if __name__ == "__main__":
                 time = get_bytes(data, 0, 8)
                 symbols = [get_bits(data, 64 + 9 * i, 9) for i in range(8)]
                 valid = [get_bits(data, 64 + 9 * 8, 1), get_bits(data, 33 + 9 * 8, 1)]
-                ltssm = get_bits(data, 17 * 8, 8)
+                ltssm = get_bits(data, 18 * 8, 8)
                 print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
                 for i in range(len(symbols)):
                     #if i < 2:
@@ -185,4 +185,4 @@ if __name__ == "__main__":
 
                 print(end="\t")
                 print(ltssm, end=" \t")
-                print(DTR.CONVERSION_TABLE[get_bits(data, 64 + 9 * 8 + 6, 6)], end=" °C\n")
+                print(DTR.CONVERSION_TABLE[get_bits(data, 17 * 8 + 2, 6)], end=" °C\n")

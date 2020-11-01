@@ -359,7 +359,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     with m.If(rx.ts.valid & (rx.ts.ts_id == 1) & rx.ts.link.valid & rx.ts.lane.valid &
                         (rx.ts.link.number == tx.ts.link.number) &
                         (rx.ts.lane.number == tx.ts.lane.number) & rx.consecutive):
-                        with m.Elif(rx_ts_count < 8):
+                        with m.If(rx_ts_count < 8):
                             m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
                     with m.Else():
                         m.d.rx += rx_ts_count.eq(0)

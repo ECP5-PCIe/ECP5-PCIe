@@ -11,7 +11,7 @@ class LatticeECP5PCIePhy(Elaboratable):
     """
     def __init__(self):
         #self.__serdes = LatticeECP5PCIeSERDESx2() # Declare SERDES module with 1:2 gearing
-        self.serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:2 gearing
+        self.serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=True) # Declare SERDES module with 1:2 gearing
         self.aligner = DomainRenamer("rx")(PCIeSERDESAligner(self.serdes.lane)) # Aligner for aligning COM symbols
         self.phy = PCIePhy(self.aligner)
 

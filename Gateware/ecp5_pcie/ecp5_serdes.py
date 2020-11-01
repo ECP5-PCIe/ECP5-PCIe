@@ -78,7 +78,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         if(speed_5GTps):
             assert clkfreq == 200e6
-            self.divide_clk = Signal()
+            self.divide_clk = Signal(reset=1)
         else:
             assert clkfreq == 100e6 or clkfreq == 200e6
             if(clkfreq == 100e6):
