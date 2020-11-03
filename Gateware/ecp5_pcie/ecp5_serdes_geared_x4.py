@@ -54,16 +54,18 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         self.slip = Signal()
 
         self.speed_5GTps = speed_5GTps
+
+        self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+
+        self.lane.frequency = int(self.__serdes.lane.frequency / 2)
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
 
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+        m.submodules.serdes = serdes = self.__serdes
 
         m.submodules += self.lane
-
-        self.lane.frequency = int(serdes.lane.frequency / 2)
 
         m.d.comb += serdes.lane.speed.eq(self.lane.speed)
 

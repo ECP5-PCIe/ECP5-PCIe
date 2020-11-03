@@ -56,7 +56,7 @@ class PCIePhyTX(Elaboratable):
         #m.submodules.fifo = fifo = self.fifo
         #m.d.rx += fifo.r_en.eq(0)
 
-        skp_counter = Signal(range(int(1538 / ratio)))
+        skp_counter = Signal(range(int(1538)))
         skp_accumulator = Signal(4)
         
         # Increase SKP accumulator once counter reaches 325 (SKP between 1180 and 1538 symbol times, here 1300)
@@ -91,6 +91,7 @@ class PCIePhyTX(Elaboratable):
                 # Send SKP ordered sets when the accumulator is above 0
                 with m.If((skp_accumulator > 0)):# & ~sending_data):
                     send(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)
+                    m.d.comb += self.sink.ready.eq(0)
                     m.d.rx += [
                         self.enable_higher_layers.eq(0),
                         skp_accumulator.eq(skp_accumulator - 1),

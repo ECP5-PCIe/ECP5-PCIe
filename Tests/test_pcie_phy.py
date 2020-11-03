@@ -81,7 +81,7 @@ class SERDESTestbench(Elaboratable):
 
 import sys
 import serial
-
+from glob import glob
 
 import os
 os.environ["NMIGEN_verbose"] = "Yes"
@@ -99,7 +99,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
