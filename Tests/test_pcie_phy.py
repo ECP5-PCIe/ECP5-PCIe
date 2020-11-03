@@ -7,6 +7,7 @@ from ecp5_pcie.utils.utils import UARTDebugger2, UARTDebugger
 from ecp5_pcie.ecp5_phy_Gen1_x1 import LatticeECP5PCIePhy   
 from ecp5_pcie.utils.parts import DTR
 from ecp5_pcie.ltssm import State
+from ecp5_pcie.serdes import Ctrl
 
 # Usage: python test_pcie_phy.py run
 #        python test_pcie_phy.py grab
@@ -65,9 +66,12 @@ class SERDESTestbench(Elaboratable):
             time_since_state = Signal(64)
             
             with m.If(ltssm.debug_state != State.L0):
-                m.d.rx += time_since_state.eq(0)
+                pass
+                #m.d.rx += time_since_state.eq(0)
             with m.Else():
-                m.d.rx += time_since_state.eq(time_since_state + 1)
+                #m.d.rx += time_since_state.eq(time_since_state + 1)
+                with m.If((lane.rx_symbol[0] == Ctrl.STP) | (lane.rx_symbol[1] == Ctrl.STP) | (lane.rx_symbol[2] == Ctrl.STP) | (lane.rx_symbol[3] == Ctrl.STP)):
+                    m.d.rx += time_since_state.eq(time_since_state + 1)
 
             m.submodules += UARTDebugger2(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
