@@ -19,7 +19,7 @@ class PCIePhy(Elaboratable):
         self.dllp_rx = PCIeDLLPReceiver(self.rx.source)
         self.dllp_tx = PCIeDLLPTransmitter()
 
-        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx)
+        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -33,6 +33,8 @@ class PCIePhy(Elaboratable):
             self.dllp_tx,
             self.dll,
         ]
+
+        m.d.comb += self.dll.speed.eq(self.descrambled_lane.speed)
 
         self.dllp_tx.source.connect(self.tx.sink, m.d.comb)
 

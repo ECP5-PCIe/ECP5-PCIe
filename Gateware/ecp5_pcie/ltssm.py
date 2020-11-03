@@ -3,7 +3,7 @@ from nmigen.build import *
 
 from enum import IntEnum
 
-from .serdes import K, D, Ctrl, PCIeSERDESInterface
+from .serdes import K, D, Ctrl, PCIeSERDESInterface, LinkSpeed
 from .layouts import ltssm_layout
 from .phy_tx import PCIePhyTX
 from .phy_rx import PCIePhyRX
@@ -122,7 +122,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             # Declare a sufficiently large timer with the reset value being the time
 
             # Count down until t=0 or or_conds is true, then jump to the next state
-            m.d.rx += timer.eq(timer + 1)
+            with m.If(self.lane.speed == LinkSpeed.S2_5):
+                m.d.rx += timer.eq(timer + 2)
+            with m.Else():
+                m.d.rx += timer.eq(timer + 1)
+
             with m.If((timer == time_in_ms * clocks_per_ms) | or_conds):
                 m.d.rx += timer.eq(0)
                 reset_ts_count_and_jump(next_state)

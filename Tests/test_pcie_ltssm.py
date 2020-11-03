@@ -20,14 +20,14 @@ CAPTURE_DEPTH = 1024
 NO_DEBUG = False
 
 # Record TS
-TS_TEST = False
+TS_TEST = True
 
 # Record a State
 STATE_TEST = False
 TESTING_STATE = State.L0
 
 # Record LTSSM state transitions
-FSM_LOG = True
+FSM_LOG = False
 
 # Default mode is to record all received symbols
 

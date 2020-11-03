@@ -1,6 +1,6 @@
 from nmigen import *
 from nmigen.build import *
-from nmigen.lib.fifo import SyncFIFOBuffered
+from nmigen.lib.fifo import SyncFIFOBuffered, AsyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
 from .ecp5_serdes import LatticeECP5PCIeSERDES
 
@@ -65,6 +65,8 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         self.lane.frequency = int(serdes.lane.frequency / 2)
 
+        m.d.comb += serdes.lane.speed.eq(self.lane.speed)
+
         data_width = len(serdes.lane.rx_symbol)
 
         m.domains.rxf = ClockDomain()
@@ -104,14 +106,14 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         # CDC
         # TODO: Keep the SyncFIFO? Its faster but is it reliable?
-        #rx_fifo = m.submodules.rx_fifo = AsyncFIFO(width=(data_width + serdes.gearing) * 2, depth=4, r_domain="rx", w_domain="rxf")
+        #rx_fifo = m.submodules.rx_fifo = AsyncFIFOBuffered(width=(data_width + serdes.gearing) * 2, depth=4, r_domain="rx", w_domain="rxf")
         rx_fifo = m.submodules.rx_fifo = DomainRenamer("rxf")(SyncFIFOBuffered(width=(data_width + serdes.gearing) * 2, depth=4))
         m.d.rxf += rx_fifo.w_data.eq(Cat(lane.rx_symbol, lane.rx_valid))
         m.d.comb += Cat(self.lane.rx_symbol, self.lane.rx_valid).eq(rx_fifo.r_data)
         m.d.comb += rx_fifo.r_en.eq(1)
         m.d.rxf += rx_fifo.w_en.eq(self.rx_clk)
 
-        #tx_fifo = m.submodules.tx_fifo = AsyncFIFO(width=(data_width + serdes.gearing * 3) * 2, depth=4, r_domain="txf", w_domain="tx")
+        #tx_fifo = m.submodules.tx_fifo = AsyncFIFOBuffered(width=(data_width + serdes.gearing * 3) * 2, depth=4, r_domain="txf", w_domain="tx")
         tx_fifo = m.submodules.tx_fifo = DomainRenamer("txf")(SyncFIFOBuffered(width=(data_width + serdes.gearing * 3) * 2, depth=4))
         m.d.comb += tx_fifo.w_data.eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
         m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(tx_fifo.r_data)

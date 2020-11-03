@@ -89,11 +89,17 @@ os.environ["NMIGEN_verbose"] = "Yes"
 
 if __name__ == "__main__":
     for arg in sys.argv[1:]:
+        if arg == "speed":
+            plat = FPGA.VersaECP55GPlatform(toolchain="Trellis")
+            plat.device = "LFE5UM-45F"
+            plat.speed = 6
+            plat.build(SERDESTestbench(), do_program=False)
+
         if arg == "run":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB1', baudrate=1000000)
+            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0

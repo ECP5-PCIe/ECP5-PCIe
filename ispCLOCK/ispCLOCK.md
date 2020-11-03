@@ -1,3 +1,7 @@
+To program the ispCLOCK chip:
+`openocd -f ispCLOCK-x00MHz.svf`
+where x is 1 or 2
+
 To change a .jed file into a .svf file:
 - Open Diamond Programmer
     - Click on `Design` -> `Utilities` -> `Deployment Tool`

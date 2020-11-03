@@ -21,14 +21,29 @@ class FCType(IntEnum):
 class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
     """
     PCIe Data Link Layer
+
+    Parameters
+    ----------
+    clk_freq : int
+        Maximum clock frequency in Hz, the speed in 5 GT/s mode
+    up : Signal()
+        Whether the DLL is active
+    credits_tx : Record(dll_layout)
+        Credits to transmit
+    credits_rx : Record(dll_layout)
+        Received credits
+    speed : Signal()
+        Speed, from LinkSpeed enum from serdes.py
     """
-    def __init__(self, ltssm : PCIeLTSSM, tx : PCIeDLLPTransmitter, rx : PCIeDLLPReceiver):
+    def __init__(self, ltssm : PCIeLTSSM, tx : PCIeDLLPTransmitter, rx : PCIeDLLPReceiver, clk_freq : int):
         self.up = Signal()
         self.ltssm = ltssm
         self.tx = tx
         self.rx = rx
         self.credits_tx = Record(dll_layout)
         self.credits_rx = Record(dll_layout)
+        self.clk_freq = clk_freq
+        self.speed = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -37,6 +52,15 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         got_p = Signal()
         got_np = Signal()
         got_cpl = Signal()
+
+        m.d.comb += [
+            self.credits_tx.PH.eq(1000),
+            self.credits_tx.PD.eq(1000),
+            self.credits_tx.NPH.eq(1000),
+            self.credits_tx.NPD.eq(1000),
+            self.credits_tx.CPLH.eq(1000),
+            self.credits_tx.CPLD.eq(1000),
+        ]
 
         # Which DLLPs to transmit, only concerning Flow Control Initialization
         fc_type = Signal(2)
@@ -112,13 +136,13 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += self.up.eq(1)
 
                 # Send DLLP UpdateFC packets often enough, assumes 125 MHz clock, tranmits every 25 µs if there is no other ongoing transmission
-                clk = 125E6
+                clk = self.clk_freq
                 min_delay = 25E-6
                 update_timer =  Signal(range(int(min_delay * clk + 1)))
 
                 m.d.rx += update_timer.eq(update_timer + 1)
 
-                with m.If((update_timer >= int(min_delay * clk)) & ~sending_tlp):
+                with m.If(((update_timer << self.speed) >= int(min_delay * clk)) & ~sending_tlp):
                     m.d.rx += fc_type.eq(FCType.UpdateFC)
                     m.d.rx += transmit_dllps.eq(1)
                     m.d.rx += done_dllp_transmission.eq(0)

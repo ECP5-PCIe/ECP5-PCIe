@@ -27,6 +27,10 @@ class Ctrl(IntEnum):
     EIE = K(28, 7) # Electrical Idle Exit
     END = K(29, 7)
     EDB = K(30, 7) # End Bad
+
+class LinkSpeed(IntEnum):
+    S2_5 = 1, # Speed of 2.5 GT/s, multiply timers by 2 by left shifting them by one bit
+    S5_0 = 0, # Speed of 5 GT/s
     
 
 
@@ -82,6 +86,11 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
     det_status : Signal
         Valid when ``det_valid`` is asserted. Indicates whether a receiver has been detected
         on this lane.
+    
+    frequency : int
+        Maximum frequency in Hz
+    speed : Signal()
+        LinkSpeed enum value, indicates current speed
     """
     def __init__(self, ratio=1):
         self.ratio        = ratio
@@ -106,6 +115,7 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_status   = Signal()
 
         self.frequency    = 0
+        self.speed        = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -137,6 +147,9 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         self.det_enable   = lane.det_enable
         self.det_valid    = lane.det_valid
         self.det_status   = lane.det_status
+
+        self.frequency    = lane.frequency
+        self.speed        = lane.speed
 
         self.__lane = lane
 
@@ -213,7 +226,10 @@ class PCIeScrambler(PCIeSERDESInterface):
         self.det_valid    = lane.det_valid
         self.det_status   = lane.det_status
 
-        self.enable      = enable
+        self.enable       = enable
+
+        self.frequency    = lane.frequency
+        self.speed        = lane.speed
 
         self.__lane = lane
 

@@ -61,7 +61,7 @@ class PCIePhyTX(Elaboratable):
         
         # Increase SKP accumulator once counter reaches 325 (SKP between 1180 and 1538 symbol times, here 1300)
         m.d.rx += skp_counter.eq(skp_counter + 1)
-        with m.If(skp_counter == 325):
+        with m.If((skp_counter << lane.speed) == 650):
             m.d.rx += skp_counter.eq(0)
             with m.If(skp_accumulator < 15):
                 m.d.rx += skp_accumulator.eq(skp_accumulator + 1)
