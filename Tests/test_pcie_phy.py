@@ -3,7 +3,7 @@ from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
-from ecp5_pcie.utils.utils import UARTDebugger
+from ecp5_pcie.utils.utils import UARTDebugger2, UARTDebugger
 from ecp5_pcie.ecp5_phy_Gen1_x1 import LatticeECP5PCIePhy   
 from ecp5_pcie.utils.parts import DTR
 from ecp5_pcie.ltssm import State
@@ -69,11 +69,11 @@ class SERDESTestbench(Elaboratable):
             with m.Else():
                 m.d.rx += time_since_state.eq(time_since_state + 1)
 
-            m.submodules += UARTDebugger(uart, 19, CAPTURE_DEPTH, Cat(
+            m.submodules += UARTDebugger2(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
-                lane.rx_symbol, phy.dllp_tx.source.symbol,# lane.tx_symbol,
-                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
-                ), "rx")
+                lane.rx_symbol, lane.tx_symbol,# lane.tx_symbol,
+                lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
+                ), "rx")#, enable = phy.ltssm.debug_state == State.L0)
 
         return m
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
                     data = 0
                 time = get_bytes(data, 0, 8)
                 symbols = [get_bits(data, 64 + 9 * i, 9) for i in range(8)]
-                valid = [get_bits(data, 64 + 9 * 8, 1), get_bits(data, 33 + 9 * 8, 1)]
+                valid = [get_bits(data, 64 + 9 * 8, 1), get_bits(data, 65 + 9 * 8, 1)]
                 ltssm = get_bits(data, 18 * 8, 8)
                 print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
                 for i in range(len(symbols)):
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                     #else:
                     print_symbol(symbols[i], end="\t")
                     if i == 3:
-                        print(end="\t")
+                        print(valid[0], end="\t")
 
                 print(end="\t")
                 print(ltssm, end=" \t")

@@ -150,7 +150,8 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 with m.Elif(done_dllp_transmission):
                     m.d.rx += transmit_dllps.eq(0)
                     
-                pass
+                with m.If(~self.ltssm.status.link.up): # TODO: Why does it cause u-boot on the RP64 to reboot?
+                    m.next = State.DL_Inactive
         
         # DLLP sending FSM
         # TODO: It transmits the first packet twice. This doesn't break it but it unnecessarily takes up bandwidth.

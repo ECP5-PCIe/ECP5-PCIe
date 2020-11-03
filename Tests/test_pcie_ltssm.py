@@ -20,14 +20,14 @@ CAPTURE_DEPTH = 1024
 NO_DEBUG = False
 
 # Record TS
-TS_TEST = True
+TS_TEST = False
 
 # Record a State
 STATE_TEST = False
 TESTING_STATE = State.L0
 
 # Record LTSSM state transitions
-FSM_LOG = False
+FSM_LOG = True
 
 # Default mode is to record all received symbols
 
@@ -209,6 +209,7 @@ class SERDESTestbench(Elaboratable):
 
 import sys
 import serial
+from glob import glob
 
 
 import os
@@ -221,7 +222,7 @@ if __name__ == "__main__":
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(TS_TEST), do_program=True, nextpnr_opts="-r")
 
         if arg == "grab":
-            port = serial.Serial(port='/dev/ttyUSB0', baudrate=1000000)
+            port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
             port.write(b"\x00")
             indent = 0
             last_time = 0
