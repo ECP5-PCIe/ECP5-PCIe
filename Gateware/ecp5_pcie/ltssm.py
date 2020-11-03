@@ -85,6 +85,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         scrambling = Signal()
         #m.d.rx += scrambling.eq(scrambling & ~rx.ts.ctrl.disable_scrambling)
 
+        # Is set when transitioning to Detect.Active and reset in Detect.Quiet
+        ready_reset = Signal()
+
         
         def reset_ts_count_and_jump(next_state):
             """
@@ -149,6 +152,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 # But don't scramble TS
                 m.d.rx += status.link.scrambling.eq(0)
 
+                # Reset DCU when coming to Detect
+                m.d.rx += ready_reset.eq(0)
+                m.d.rx += lane.reset.eq(ready_reset)
+
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
                 timeout(12, State.Detect_Active, lane.rx_present & (timer > 20)) # ~rx_present_last & 
@@ -156,9 +163,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
             with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
                 m.d.rx += debug_state.eq(State.Detect_Active)
+
                 # Enable lane detection
                 m.d.rx += lane.det_enable.eq(1)
                 m.d.rx += tx.eidle.eq(0)
+
+                m.d.rx += ready_reset.eq(1)
 
                 with m.If(lane.det_valid):
                     # Wait until the detection result is there and disable lane detection again as soon as it is.

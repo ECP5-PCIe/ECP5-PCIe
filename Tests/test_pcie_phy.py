@@ -91,7 +91,7 @@ if __name__ == "__main__":
     for arg in sys.argv[1:]:
         if arg == "speed":
             plat = FPGA.VersaECP55GPlatform(toolchain="Trellis")
-            plat.device = "LFE5UM-45F"
+            plat.device = "LFE5UM-25F"
             plat.speed = 6
             plat.build(SERDESTestbench(), do_program=False)
 

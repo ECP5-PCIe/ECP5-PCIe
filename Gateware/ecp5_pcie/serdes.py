@@ -117,6 +117,8 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.frequency    = 0
         self.speed        = Signal()
 
+        self.reset        = Signal()
+
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
         return m
@@ -150,6 +152,8 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
         self.frequency    = lane.frequency
         self.speed        = lane.speed
+
+        self.reset        = lane.reset
 
         self.__lane = lane
 
@@ -230,6 +234,8 @@ class PCIeScrambler(PCIeSERDESInterface):
 
         self.frequency    = lane.frequency
         self.speed        = lane.speed
+        
+        self.reset        = lane.reset
 
         self.__lane = lane
 

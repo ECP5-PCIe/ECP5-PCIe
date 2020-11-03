@@ -171,7 +171,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     serdes_rx_reset.eq(1),
                     pcs_reset      .eq(1),
                 ]
-                m.next = "start-tx"
+                with m.If(~self.lane.reset):
+                    m.next = "start-tx"
 
             with m.State("start-tx"):
                 m.d.rx += [
@@ -197,6 +198,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     serdes_rx_reset.eq(0),
                     pcs_reset      .eq(0),
                 ]
+
+                with m.If(self.lane.reset):
+                    m.next = "init"
 
 
         # Clock domain crossing for status signals and tx data

@@ -69,6 +69,8 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         m.d.comb += serdes.lane.speed.eq(self.lane.speed)
 
+        m.d.comb += serdes.lane.reset.eq(self.lane.reset)
+
         data_width = len(serdes.lane.rx_symbol)
 
         m.domains.rxf = ClockDomain()
