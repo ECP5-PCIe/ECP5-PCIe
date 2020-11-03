@@ -171,8 +171,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     serdes_rx_reset.eq(1),
                     pcs_reset      .eq(1),
                 ]
-                with m.If(~self.lane.reset):
-                    m.next = "start-tx"
+                #with m.If(~self.lane.reset):
+                m.next = "start-tx"
 
             with m.State("start-tx"):
                 m.d.rx += [

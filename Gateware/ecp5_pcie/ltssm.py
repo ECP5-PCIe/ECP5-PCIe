@@ -154,7 +154,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # Reset DCU when coming to Detect
                 m.d.rx += ready_reset.eq(ready_reset & ~lane.reset)
-                m.d.rx += lane.reset.eq(ready_reset)
+                m.d.rx += lane.reset.eq(timer < 2)
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
