@@ -107,156 +107,179 @@ class ECP5SerDesConfigController(Elaboratable): # Copied from LUNA, https://gith
         vals_ch_read   = self.vals_ch_read
         vals_du_read   = self.vals_du_read
 
-        # TODO: Find better solution, might cause unintended behaviour
+        # TODO: Find better solution
         if len(vals_ch_write) == 0:
-            vals_ch_write = [[0xFF, "--------"]]
+            vals_ch_write = [[-1]]
 
         if len(vals_du_write) == 0:
-            vals_du_write = [[0xFF, "--------"]]
+            vals_du_write = [[-1]]
 
         if len(vals_ch_read) == 0:
-            vals_ch_read = [[0xFF, Signal(8)]]
+            vals_ch_read = [[-1]]
 
         if len(vals_du_read) == 0:
-            vals_du_read = [[0xFF, Signal(8)]]
+            vals_du_read = [[-1]]
 
 
         data = Signal(8)
         first = Signal()
 
 
+        # TODO: Make this less redundant
         with m.FSM(domain="sync"):
+            # Procedurally generate FSM
             for i in range(len(vals_ch_write)):
                 ch = vals_ch_write[i][0]
-                
-                with m.State("READ-CH_" + hex(ch)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(1),
-                        sci.dual_sel.eq(0),
-                        sci.re.eq(1),
-                        sci.adr.eq(ch),
-                    ]
 
-                    with m.If(~first & sci.done):
-                        m.d.comb += sci.re.eq(0)
-                        m.d.sync += [
-                            data.eq(sci.dat_r),
-                            first.eq(1),
+                # If there are no channels to write to skip it
+                if ch == -1:
+                    with m.State("READ-CH_" + hex(ch)):
+                        m.next = "READ-DU_" + hex(vals_du_write[0][0])
+
+                else:
+                    with m.State("READ-CH_" + hex(ch)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(1), # Select channel registers
+                            sci.dual_sel.eq(0),
+                            sci.re.eq(1),
+                            sci.adr.eq(ch),
                         ]
-                        m.next = "WRITE-CH_" + hex(ch)
 
-                with m.State("WRITE-CH_" + hex(ch)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(1),
-                        sci.dual_sel.eq(0),
-                        sci.we.eq(1),
-                        sci.adr.eq(ch),
-                        sci.dat_w.eq(data),
-                    ]
+                        with m.If(~first & sci.done):
+                            m.d.comb += sci.re.eq(0)
+                            m.d.sync += [
+                                data.eq(sci.dat_r), # Read channel to data signal
+                                first.eq(1),
+                            ]
+                            m.next = "WRITE-CH_" + hex(ch)
 
-                    for j in range(len(vals_ch_write[i][1])):
-                        c = vals_ch_write[i][1][j]
-                        if c != "-":
-                            m.d.comb += sci.dat_w[j].eq(int(c))
+                    with m.State("WRITE-CH_" + hex(ch)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(1),
+                            sci.dual_sel.eq(0),
+                            sci.we.eq(1),
+                            sci.adr.eq(ch),
+                            sci.dat_w.eq(data),
+                        ]
 
-                    with m.If(~first & sci.done):
-                        m.d.comb += sci.we.eq(0)
-                        m.d.sync += first.eq(1)
-                        if i + 1 == len(vals_ch_write):
-                            m.next = "READ-DU_" + hex(vals_du_write[0][0])
-                        else:
-                            m.next = "READ-CH_" + hex(vals_ch_write[i + 1][0])
+                        for j in range(len(vals_ch_write[i][1])):
+                            c = vals_ch_write[i][1][j]
+                            if c != "-": # Only overwrite bits which should be overridden (thats why we read the channel before)
+                                m.d.comb += sci.dat_w[j].eq(int(c))
+
+                        with m.If(~first & sci.done):
+                            m.d.comb += sci.we.eq(0)
+                            m.d.sync += first.eq(1)
+                            if i + 1 == len(vals_ch_write):
+                                m.next = "READ-DU_" + hex(vals_du_write[0][0])
+                            else:
+                                m.next = "READ-CH_" + hex(vals_ch_write[i + 1][0])
 
             for i in range(len(vals_du_write)):
                 dl = vals_du_write[i][0]
-                
-                with m.State("READ-DU_" + hex(dl)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(0),
-                        sci.dual_sel.eq(1),
-                        sci.re.eq(1),
-                        sci.adr.eq(dl),
-                    ]
 
-                    with m.If(sci.done):
-                        m.d.comb += sci.re.eq(0)
-                        m.d.sync += [
-                            data.eq(sci.dat_r),
-                            first.eq(1),
+                if dl == -1:
+                    with m.State("READ-DU_" + hex(dl)):
+                        m.next = "READ-VAL-CH_" + hex(vals_ch_read[0][0])
+
+                else:
+                    with m.State("READ-DU_" + hex(dl)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(0),
+                            sci.dual_sel.eq(1),
+                            sci.re.eq(1),
+                            sci.adr.eq(dl),
                         ]
-                        m.next = "WRITE-DU_" + hex(dl)
 
-                with m.State("WRITE-DU_" + hex(dl)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(0),
-                        sci.dual_sel.eq(1),
-                        sci.we.eq(1),
-                        sci.adr.eq(dl),
-                        sci.dat_w.eq(data),
-                    ]
+                        with m.If(sci.done):
+                            m.d.comb += sci.re.eq(0)
+                            m.d.sync += [
+                                data.eq(sci.dat_r),
+                                first.eq(1),
+                            ]
+                            m.next = "WRITE-DU_" + hex(dl)
 
-                    for j in range(len(vals_du_write[i][1])):
-                        c = vals_du_write[i][1][j]
-                        if c != "-":
-                            m.d.comb += sci.dat_w[j].eq(int(c))
+                    with m.State("WRITE-DU_" + hex(dl)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(0),
+                            sci.dual_sel.eq(1),
+                            sci.we.eq(1),
+                            sci.adr.eq(dl),
+                            sci.dat_w.eq(data),
+                        ]
 
-                    with m.If(~first & sci.done):
-                        m.d.comb += sci.we.eq(0)
-                        m.d.sync += first.eq(1)
-                        if i + 1 == len(vals_du_write):
-                            m.next = "READ-CH_" + hex(vals_ch_write[0][0])
-                        else:
-                            m.next = "READ-DU_" + hex(vals_du_write[i + 1][0])
+                        for j in range(len(vals_du_write[i][1])):
+                            c = vals_du_write[i][1][j]
+                            if c != "-":
+                                m.d.comb += sci.dat_w[j].eq(int(c))
+
+                        with m.If(~first & sci.done):
+                            m.d.comb += sci.we.eq(0)
+                            m.d.sync += first.eq(1)
+                            if i + 1 == len(vals_du_write):
+                                m.next = "READ-VAL-CH_" + hex(vals_ch_write[0][0])
+                            else:
+                                m.next = "READ-DU_" + hex(vals_du_write[i + 1][0])
 
             for i in range(len(vals_ch_read)):
                 ch = vals_ch_read[i][0]
-                
-                with m.State("READ-VAL-CH_" + hex(ch)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(1),
-                        sci.dual_sel.eq(0),
-                        sci.re.eq(1),
-                        sci.adr.eq(ch),
-                    ]
 
-                    with m.If(~first & sci.done):
-                        m.d.comb += sci.re.eq(0)
-                        m.d.sync += [
-                            vals_ch_read[i][1].eq(sci.dat_r),
-                            first.eq(1),
+                if ch == -1:
+                    with m.State("READ-VAL-CH_" + hex(ch)):
+                        m.next = "READ-VAL-DU_" + hex(vals_du_read[0][0])
+
+                else:
+                    with m.State("READ-VAL-CH_" + hex(ch)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(1),
+                            sci.dual_sel.eq(0),
+                            sci.re.eq(1),
+                            sci.adr.eq(ch),
                         ]
-                        if i + 1 == len(vals_ch_read):
-                            m.next = "READ-VAL-DU_" + hex(vals_du_read[0][0])
-                        else:
-                            m.next = "READ-VAL-CH_" + hex(vals_ch_read[i + 1][0])
+
+                        with m.If(~first & sci.done):
+                            m.d.comb += sci.re.eq(0)
+                            m.d.sync += [
+                                vals_ch_read[i][1].eq(sci.dat_r), # Read to signal
+                                first.eq(1),
+                            ]
+                            if i + 1 == len(vals_ch_read):
+                                m.next = "READ-VAL-DU_" + hex(vals_du_read[0][0])
+                            else:
+                                m.next = "READ-VAL-CH_" + hex(vals_ch_read[i + 1][0])
 
             for i in range(len(vals_du_read)):
                 dl = vals_du_read[i][0]
-                
-                with m.State("READ-VAL-DU_" + hex(dl)):
-                    m.d.sync += first.eq(0)
-                    m.d.comb += [
-                        sci.chan_sel.eq(0),
-                        sci.dual_sel.eq(1),
-                        sci.re.eq(1),
-                        sci.adr.eq(dl),
-                    ]
 
-                    with m.If(sci.done):
-                        m.d.comb += sci.re.eq(0)
-                        m.d.sync += [
-                            vals_du_read[i][1].eq(sci.dat_r),
-                            first.eq(1),
+                if dl == -1:
+                    with m.State("READ-VAL-DU_" + hex(dl)):
+                        m.next = "READ-CH_" + hex(vals_ch_write[0][0])
+
+                else:
+                    with m.State("READ-VAL-DU_" + hex(dl)):
+                        m.d.sync += first.eq(0)
+                        m.d.comb += [
+                            sci.chan_sel.eq(0),
+                            sci.dual_sel.eq(1),
+                            sci.re.eq(1),
+                            sci.adr.eq(dl),
                         ]
-                        if i + 1 == len(vals_du_read):
-                            m.next = "READ-CH_" + hex(vals_ch_write[0][0])
-                        else:
-                            m.next = "READ-VAL-DU_" + hex(vals_du_read[i + 1][0])
+
+                        with m.If(sci.done):
+                            m.d.comb += sci.re.eq(0)
+                            m.d.sync += [
+                                vals_du_read[i][1].eq(sci.dat_r),
+                                first.eq(1),
+                            ]
+                            if i + 1 == len(vals_du_read):
+                                m.next = "READ-CH_" + hex(vals_ch_write[0][0])
+                            else:
+                                m.next = "READ-VAL-DU_" + hex(vals_du_read[i + 1][0])
 
 
         return m
