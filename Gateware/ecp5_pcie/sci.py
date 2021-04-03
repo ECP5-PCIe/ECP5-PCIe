@@ -85,7 +85,7 @@ class ECP5SerDesConfigController(Elaboratable): # Copied from LUNA, https://gith
         Value to write in DCU registers, see vals_ch_write
     vals_ch_read : [[reg : int, sig : Signal]]
         Read value at channel register reg into signal sig
-    vals_du_read : int
+    vals_du_read : [[reg : int, sig : Signal]]
         Read value at DCU register reg into signal sig
     """
 
