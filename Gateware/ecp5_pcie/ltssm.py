@@ -154,11 +154,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # Reset DCU when coming to Detect
                 m.d.rx += ready_reset.eq(ready_reset & ~lane.reset)
-                m.d.rx += lane.reset.eq(ready_reset)
+                m.d.rx += lane.reset.eq(timer < 4)
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
-                timeout(12, State.Detect_Active, lane.rx_present & (timer > 20)) # ~rx_present_last & 
+                timeout(12, State.Detect_Active, (lane.reset_done | lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
 
 
             with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
@@ -547,7 +547,20 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     m.d.rx += status.idle_to_rlock_transitioned.eq(0)
                 
                 with m.If(rx.ts_received):
-                    m.next = State.Recovery
+                    reset_ts_count_and_jump(State.Recovery)
+                
+
+                error_count = Signal(range(64))
+
+                # When more than 1/9 of cycles have errors, reset
+                with m.If(rx.has_symbol(Ctrl.Error)):
+                    m.d.rx += error_count.eq(error_count + 8)
+
+                    with m.If(error_count > 50):
+                        reset_ts_count_and_jump(State.Detect)
+
+                with m.Else():
+                    m.d.rx += error_count.eq(error_count - 1)
 
 
         return m

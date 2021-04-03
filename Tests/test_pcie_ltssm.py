@@ -3,13 +3,14 @@ from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer
 from nmigen_boards import versa_ecp5_5g as FPGA
 from nmigen_stdio.serial import AsyncSerial
-from ecp5_pcie.utils.utils import UARTDebugger
+from ecp5_pcie.utils.utils import UARTDebugger, UARTDebugger2
 from ecp5_pcie.ecp5_serdes_geared_x4 import LatticeECP5PCIeSERDESx4
 from ecp5_pcie.serdes import K, D, Ctrl, PCIeSERDESAligner, PCIeSERDESInterface, PCIeScrambler
 from ecp5_pcie.layouts import ts_layout
 from ecp5_pcie.ltssm import *
 from ecp5_pcie.utils.parts import DTR
 from ecp5_pcie.lfsr import PCIeLFSR
+from ecp5_pcie.phy import PCIePhy
 
 # Usage: python test_pcie_ltssm.py run
 #        python test_pcie_ltssm.py grab
@@ -40,18 +41,24 @@ class SERDESTestbench(Elaboratable):
 
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=True) # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
-        m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
+        m.submodules.phy = phy = PCIePhy(aligner)
+        lane = phy.descrambled_lane
+        phy_rx = phy.rx
+        phy_tx = phy.tx
+        ltssm = phy.ltssm
+
+        #m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
-        m.submodules.phy_rx = phy_rx = PCIePhyRX(aligner, lane)
-        m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
+        #m.submodules.phy_rx = phy_rx = PCIePhyRX(aligner, lane)
+        #m.submodules.phy_tx = phy_tx = PCIePhyTX(lane)
         #m.submodules.lfsr = lfsr = PCIeLFSR(0, 1)
         #m.submodules.phy_txfake = phy_txfake = PCIePhyTX(PCIeSERDESInterface(ratio = 2))
 
         # Link Status Machine to test
         #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
-        m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
+        #m.submodules.ltssm = ltssm = PCIeLTSSM(lane, phy_tx, phy_rx)
         #m.d.comb += [
         #    phy_tx.ts.eq(0),
         #    phy_tx.ts.valid.eq(1),
@@ -59,16 +66,16 @@ class SERDESTestbench(Elaboratable):
         #    phy_tx.ts.ctrl.eq(0)
         #]
         
-        m.d.rx += lane.enable.eq(ltssm.status.link.scrambling & ~phy_tx.sending_ts)
+        #TODO m.d.rx += lane.enable.eq(ltssm.status.link.scrambling & ~phy_tx.sending_ts)
 
         m.d.comb += [
             #lane.rx_invert.eq(0),
-            serdes.lane.rx_align.eq(1),
+            #serdes.lane.rx_align.eq(1),
         ]
 
         m.d.comb += [
             #lane.rx_invert.eq(0),
-            lane.rx_align.eq(1),
+            #lane.rx_align.eq(1),
         ]
 
         # Declare the RX and TX clock domain, most of the logic happens in the RX domain
@@ -80,10 +87,10 @@ class SERDESTestbench(Elaboratable):
         ]
 
         # Clock outputs for the RX and TX clock domain
-        #platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
-        #platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        #m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        platform.add_resources([Resource("test", 0, Pins("B17", dir="o"))]) # X4 33
+        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))]) # X4 39
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("rxf"))
 
         # Counters for the LEDs
         refclkcounter = Signal(32)
@@ -124,7 +131,11 @@ class SERDESTestbench(Elaboratable):
         #]
 
         m.d.comb += leds_alnum.eq(ltssm.debug_state)
-        m.d.comb += leds.eq(~ltssm.debug_state)
+        #m.d.comb += leds.eq(~Cat(serdes.serdes.lane.rx_locked, serdes.serdes.lane.tx_locked, serdes.serdes.lane.reset, serdes.serdes.lane.reset_done, Const(0, 5)))
+
+        div = Signal(32)
+        m.d.rx += div.eq(div + 1)
+        m.d.comb += leds.eq(div[24:])
 
         uart_pins = platform.request("uart", 0)
         uart = AsyncSerial(divisor = int(100), pins = uart_pins)
@@ -179,6 +190,8 @@ class SERDESTestbench(Elaboratable):
             # Keep track of time in 8 nanosecond increments
             time = Signal(64)
             m.d.rx += time.eq(time + 1)
+            #with m.If(serdes.serdes.lane.reset):
+            #    m.d.rx += time.eq(time + 1)
 
             # Real time in 10 ns ticks, doesnt drift or change in frequency as compared to the RX clock domain.
             realtime = Signal(64)
@@ -193,7 +206,7 @@ class SERDESTestbench(Elaboratable):
             # 8o 8c 64t 64r 32i 6T 1v 1- 8l 5L o O 1-
             # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
             # preceding number is number of bits
-            debug = UARTDebugger(uart, 25, CAPTURE_DEPTH, Cat(
+            debug = UARTDebugger2(uart, 25, CAPTURE_DEPTH, Cat(
                 last_state, ltssm.debug_state, time, realtime_rx, Signal(32), dtr.temperature, Signal(1), dtr.valid,
                 phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
                 ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
@@ -346,6 +359,8 @@ if __name__ == "__main__":
                     # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
                     # preceding number is number of bits
                     chars = port.read(25 * 2 + 1)
+                    #if chars.contains('Z'):
+                    #    break
                     try:
                         data = int(chars, 16)
                     except:

@@ -3169,8 +3169,8 @@
   )
 
   (gr_poly (pts (xy 167.9575 133.985) (xy 130.81 133.985) (xy 130.81 126.0475) (xy 167.9575 126.0475)) (layer B.Mask) (width 0.1))
-  (gr_poly (pts (xy 129.55 128.95) (xy 119.05 128.95) (xy 119.05 119.15) (xy 129.55 119.15)) (layer B.Mask) (width 0.1))
-  (gr_poly (pts (xy 129.55 128.85) (xy 119.05 128.85) (xy 119.05 119.15) (xy 129.55 119.15)) (layer F.Mask) (width 0.1))
+  (gr_poly (pts (xy 129.55 129) (xy 119.05 129) (xy 119.05 119.2) (xy 129.55 119.2)) (layer B.Mask) (width 0.1))
+  (gr_poly (pts (xy 129.55 128.9) (xy 119.05 128.9) (xy 119.05 119.2) (xy 129.55 119.2)) (layer F.Mask) (width 0.1))
   (gr_poly (pts (xy 167.9575 133.985) (xy 130.81 133.985) (xy 130.81 126.0475) (xy 167.9575 126.0475)) (layer F.Mask) (width 0.1))
   (gr_poly (pts (xy 186.182 72.263) (xy 185.674 72.263) (xy 185.674 71.501) (xy 186.182 71.501)) (layer B.Mask) (width 0.1))
   (gr_poly (pts (xy 186.055 75.311) (xy 185.42 75.311) (xy 185.42 74.422) (xy 186.055 74.422)) (layer B.Mask) (width 0.1))

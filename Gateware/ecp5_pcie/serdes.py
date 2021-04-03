@@ -27,6 +27,7 @@ class Ctrl(IntEnum):
     EIE = K(28, 7) # Electrical Idle Exit
     END = K(29, 7)
     EDB = K(30, 7) # End Bad
+    Error = K(14, 7) # End Bad
 
 class LinkSpeed(IntEnum):
     S2_5 = 1, # Speed of 2.5 GT/s, multiply timers by 2 by left shifting them by one bit
@@ -118,6 +119,7 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.speed        = Signal()
 
         self.reset        = Signal()
+        self.reset_done   = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -154,6 +156,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         self.speed        = lane.speed
 
         self.reset        = lane.reset
+        self.reset_done   = lane.reset_done
 
         self.__lane = lane
 
@@ -236,6 +239,7 @@ class PCIeScrambler(PCIeSERDESInterface):
         self.speed        = lane.speed
         
         self.reset        = lane.reset
+        self.reset_done   = lane.reset_done
 
         self.__lane = lane
 

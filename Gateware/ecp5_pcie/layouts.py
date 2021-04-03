@@ -51,10 +51,10 @@ dllp_layout = [
 ]
 
 dll_layout = [
-    ("PH", 12),
+    ("PH", 8),
     ("PD", 12),
-    ("NPH", 12),
+    ("NPH", 8),
     ("NPD", 12),
-    ("CPLH", 12),
+    ("CPLH", 8),
     ("CPLD", 12),
 ]

@@ -56,6 +56,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         self.speed_5GTps = speed_5GTps
 
         self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+        self.serdes = self.__serdes # For testing
 
         self.lane.frequency = int(self.__serdes.lane.frequency / 2)
     
@@ -126,16 +127,20 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         #m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
 
 
-        serdes.lane.rx_invert     = self.lane.rx_invert
-        serdes.lane.rx_align      = self.lane.rx_align
-        serdes.lane.rx_aligned    = self.lane.rx_aligned
-        serdes.lane.rx_locked     = self.lane.rx_locked
-        serdes.lane.rx_present    = self.lane.rx_present
+        self.lane.rx_invert     = serdes.lane.rx_invert
+        self.lane.rx_align      = serdes.lane.rx_align
+        self.lane.rx_aligned    = serdes.lane.rx_aligned
+        self.lane.rx_locked     = serdes.lane.rx_locked
+        self.lane.rx_present    = serdes.lane.rx_present
+        
+        self.lane.tx_locked     = serdes.lane.tx_locked
 
-        serdes.lane.det_enable    = self.lane.det_enable
-        serdes.lane.det_valid     = self.lane.det_valid
-        serdes.lane.det_status    = self.lane.det_status
-        serdes.slip               = self.slip
+        self.lane.det_enable    = serdes.lane.det_enable
+        self.lane.det_valid     = serdes.lane.det_valid
+        self.lane.det_status    = serdes.lane.det_status
+        self.slip               = serdes.slip
+
+        self.lane.reset_done    = serdes.lane.reset_done
 
 
         return m

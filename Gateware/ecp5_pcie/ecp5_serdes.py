@@ -3,9 +3,11 @@ from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
 from nmigen.lib.fifo import AsyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
+from .sci import *
 
 
-__all__ = ["LatticeECP5PCIeSERDES"]
+__all__ = ["LatticeECP5PCIeSERDES", "ECP5SerDesConfigInterface"]
+
 
 
 class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
@@ -143,6 +145,36 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     lane.tx_symbol[0: 9], lane.tx_set_disp[0], lane.tx_disp[0], lane.tx_e_idle[0],
                     lane.tx_symbol[9:18], lane.tx_set_disp[1], lane.tx_disp[1], lane.tx_e_idle[1])),
             ]
+        
+
+
+        #
+        vals_ch_write = [ # LSB first
+            #["16", "----0---"],
+            #["18", "------10"],
+            #["04", "----1--1"], # CTC bypass and lsm_disable
+            #["05", "----00--"], # Disanble skip match
+            #["1A", "---1----"], # pden_sel
+            #["1B", "------00"], # los_en
+            #["18", "----1---"],
+        ]
+
+        vals_du_write = [ # LSB first
+            #["0B", "11-----0"],
+            #["18", "----1---"],
+        ]
+
+        vals_ch_read = [
+            #["16", test1], # Read address 16 to test1
+        ]
+
+        vals_du_read = [
+        ]
+
+        # SCI interface. (from LUNA https://github.com/greatscottgadgets/luna/blob/main/luna/gateware/interface/serdes_phy/backends/ecp5.py)
+        m.submodules.sci = sci = ECP5SerDesConfigInterface()
+        m.submodules.sci_ctrl = sci_ctrl = ECP5SerDesConfigController(sci, vals_ch_write, vals_du_write, vals_ch_read, vals_du_read)
+
 
 
         # RX signals and their domain-crossed parts
@@ -166,37 +198,41 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         with m.FSM(domain="rx"): # Inspirations taken from LUNA
             with m.State("init"):
-                m.d.rx += [
+                m.d.comb += [
                     serdes_tx_reset.eq(1),
                     serdes_rx_reset.eq(1),
                     pcs_reset      .eq(1),
+                    lane.reset_done.eq(0),
                 ]
-                with m.If(~self.lane.reset):
-                    m.next = "start-tx"
+                #with m.If(~self.lane.reset):
+                m.next = "start-tx"
 
             with m.State("start-tx"):
-                m.d.rx += [
+                m.d.comb += [
                     serdes_tx_reset.eq(0),
                     serdes_rx_reset.eq(1),
                     pcs_reset      .eq(1),
+                    lane.reset_done.eq(0),
                 ]
                 with m.If(~tx_lol_s):
                     m.next = "start-rx"
 
             with m.State("start-rx"):
-                m.d.rx += [
+                m.d.comb += [
                     serdes_tx_reset.eq(0),
                     serdes_rx_reset.eq(0),
                     pcs_reset      .eq(1),
+                    lane.reset_done.eq(0),
                 ]
                 with m.If(~rx_lol_s):
                     m.next = "start-pcs-done"
 
             with m.State("start-pcs-done"):
-                m.d.rx += [
+                m.d.comb += [
                     serdes_tx_reset.eq(0),
                     serdes_rx_reset.eq(0),
                     pcs_reset      .eq(0),
+                    lane.reset_done.eq(1),
                 ]
 
                 with m.If(self.lane.reset):
@@ -220,7 +256,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             lane.rx_present.eq(~rx_los_s), 
             lane.rx_locked .eq(~rx_lol_s),
             lane.rx_aligned.eq(rx_lsm_s),
-            lane.tx_locked.eq(tx_lol_s)
+            lane.tx_locked .eq(~tx_lol_s)
         ]
 
         pcie_det_en = Signal() # Enable lane detection
@@ -381,7 +417,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
 
             "p_CHx_AUTO_FACQ_EN"      :"0b1",     # undocumented (wizard value used)
-            "p_CHx_AUTO_CALIB_EN"     :"0b1",     # undocumented (wizard value used)
+            "p_CHx_AUTO_CALIB_EN"     :"0b1",     # undocumented (wizard value used)t
             #"p_CHx_BAND_THRESHOLD"    :"0b00",
             "p_CHx_CDR_MAX_RATE"      :"2.5",     # 2.5 Gbps
             "p_CHx_RX_DCO_CK_DIV"     :"0b000",   # DIV/1
@@ -440,7 +476,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # RX CH — loss of signal
             "o_CHx_FFS_RLOS"          :rx_los,
-            "p_CHx_RLOS_SEL"          :"0b1",
+            "p_CHx_RLOS_SEL"          :"0b1", # Maybe try if values from LUNA are better here?
             "p_CHx_RX_LOS_EN"         :"0b1",
             "p_CHx_RX_LOS_LVL"        :"0b100",   # Lattice "TBD" (wizard value used)
             "p_CHx_RX_LOS_CEQ"        :"0b11",    # Lattice "TBD" (wizard value used)
@@ -483,26 +519,38 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "o_CHx_FF_TX_PCLK"        :tx_clk_o, # Output from SERDES
             "i_CHx_FF_TXI_CLK"        :tx_clk_i, # Input to SERDES
 
-            "p_CHx_TX_GEAR_MODE"      : gearing_str,    # 1:2 gearbox
-            "p_CHx_FF_TX_H_CLK_EN"    : gearing_str,    # disable DIV/1 output clock
-            "p_CHx_FF_TX_F_CLK_DIS"   : gearing_str,    # enable  DIV/2 output clock
+            "p_CHx_TX_GEAR_MODE"      :gearing_str,    # 1:2 gearbox
+            "p_CHx_FF_TX_H_CLK_EN"    :gearing_str,    # disable DIV/1 output clock
+            "p_CHx_FF_TX_F_CLK_DIS"   :gearing_str,    # enable  DIV/2 output clock
 
             "i_CHx_FFC_RATE_MODE_TX"  :self.divide_clk,              # Divide by 2 when set to 1
 
             # TX CH — data
-            **{"o_CHx_FF_TX_D_%d" % n: self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
+            **{"o_CHx_FF_TX_D_%d" % n :self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
             "p_CHx_ENC_BYPASS"        :"0b0",
 
             # CHx DET
-            "i_CHx_FFC_PCIE_DET_EN"   : pcie_det_en,
-            "i_CHx_FFC_PCIE_CT"       : pcie_ct,
-            "o_CHx_FFS_PCIE_DONE"     : pcie_done,
-            "o_CHx_FFS_PCIE_CON"      : pcie_con,
+            "i_CHx_FFC_PCIE_DET_EN"   :pcie_det_en,
+            "i_CHx_FFC_PCIE_CT"       :pcie_ct,
+            "o_CHx_FFS_PCIE_DONE"     :pcie_done,
+            "o_CHx_FFS_PCIE_CON"      :pcie_con,
 
             # Bit Slip
-            "i_CHx_FFC_CDR_EN_BITSLIP": self.slip,
+            "i_CHx_FFC_CDR_EN_BITSLIP":self.slip,
 
             #"i_CHx_FFC_FB_LOOPBACK"  : 3,
+
+            # SCI interface, see pages 52-55 in TN1261
+            **{"i_D_SCIWDATA%d" % n   :sci.sci_wdata[n] for n in range(8)}, # Data in
+            **{"i_D_SCIADDR%d"  % n   :sci.sci_addr[n] for n in range(6)},  # Address
+            **{"o_D_SCIRDATA%d" % n   :sci.sci_rdata[n] for n in range(8)}, # Data out
+
+            "i_D_SCIENAUX"            :sci.dual_sel, # Select dual registers
+            "i_D_SCISELAUX"           :sci.dual_sel,
+            "i_CH1_SCIEN"             :sci.chan_sel, # Select channel registers
+            "i_CH1_SCISEL"            :sci.chan_sel,
+            "i_D_SCIRD"               :sci.sci_rd,   # Read
+            "i_D_SCIWSTN"             :sci.sci_wrn,  # Write
         }
 
         modified_ch_config = {}

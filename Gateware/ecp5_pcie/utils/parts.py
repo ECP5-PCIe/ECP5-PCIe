@@ -5,7 +5,7 @@ from nmigen.build import *
 __all__ = ["PLL", "PLL1Ch", "DTR"]
 
 class PLL(Elaboratable):
-    def __init__(self, clkin, clksel=Signal(shape=2, reset=2), clkout1=Signal(), clkout2=Signal(), clkout3=Signal(), clkout4=Signal(), lock=Signal(), CLKI_DIV=1, CLKFB_DIV=1, CLK1_DIV=3, CLK2_DIV=4, CLK3_DIV=5, CLK4_DIV=6):
+    def __init__(self, clkin, clksel, clkout1, clkout2, clkout3, clkout4, lock, CLKI_DIV=1, CLKFB_DIV=1, CLK1_DIV=3, CLK2_DIV=4, CLK3_DIV=5, CLK4_DIV=6):
         self.clkin = clkin
         self.clkout1 = clkout1
         self.clkout2 = clkout2
@@ -79,7 +79,7 @@ class PLL(Elaboratable):
         return m
 
 class PLL1Ch(Elaboratable):
-    def __init__(self, clkin, clkout=Signal(), lock=Signal(), CLKI_DIV=1, CLKFB_DIV=1, CLK_DIV=1):
+    def __init__(self, clkin, clkout, lock, CLKI_DIV=1, CLKFB_DIV=1, CLK_DIV=1):
         self.clkin = clkin
         self.clkout = clkout
         self.lock = lock
@@ -127,10 +127,10 @@ class DTR(Elaboratable):
     # See TN1266
     CONVERSION_TABLE = [-58, -56, -54, -52, -45, -44, -43, -42, -41, -40, -39, -38, -37, -36, -30, -20, -10, -4, 0, 4, 10, 21, 22, 23, 24, 25, 26, 27, 28, 29, 40, 50, 60, 70, 76, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 116, 120, 124, 128, 132]
 
-    def __init__(self, start=Signal(), temperature=Signal(6), valid=Signal()):
-        self.start = start
-        self.temperature = temperature
-        self.valid = valid
+    def __init__(self, start = None, temperature = None, valid = None):
+        self.start = Signal() if start is None else start
+        self.temperature = Signal(6) if temperature is None else temperature
+        self.valid = Signal() if valid is None else valid
 
     def elaborate(self, platform):
         m = Module()

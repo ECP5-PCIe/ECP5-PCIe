@@ -89,7 +89,7 @@ class PCIePhyTX(Elaboratable):
                 m.d.comb += self.sink.ready.eq(1)
 
                 # Send SKP ordered sets when the accumulator is above 0
-                with m.If((skp_accumulator > 0)):# & ~sending_data):
+                with m.If(skp_accumulator > 0):# & ~sending_data):
                     send(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)
                     m.d.comb += self.sink.ready.eq(0)
                     m.d.rx += [

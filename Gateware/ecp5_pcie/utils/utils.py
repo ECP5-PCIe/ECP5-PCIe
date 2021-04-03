@@ -6,7 +6,7 @@ from nmigen.lib.fifo import AsyncFIFOBuffered
 __all__ = ["Sequencer", "FunctionSequencer", "LFSR", "Resizer", "Rotator", "HexNumber", "UARTDebugger"]
 
 class Sequencer(Elaboratable): # Does signal.eq(value) where values is a 2D array, values[m] being the values for the mth signal and values[m][n] being the values for the mth signal at the nth step. times is the clock cycle number of each occurence
-    def __init__(self, signals, values, times=lambda x : x, done=Signal(), reset=Signal()):
+    def __init__(self, signals, values, done, reset, times=lambda x : x):
         self.signals = signals
         self.values = values
         self.reset = reset
@@ -45,7 +45,7 @@ class Sequencer(Elaboratable): # Does signal.eq(value) where values is a 2D arra
         return m
 
 class FunctionSequencer(Elaboratable): # Does signal.eq(value) where points is list of tuples, functions[n][0] being the time in clock cycles when the function is executed and functions[n][1] being the function executed at the nth step on sync domain. times is the clock cycle number of each occurence
-    def __init__(self, points, done=Signal(), reset=Signal(), startByDefault=False):
+    def __init__(self, points, done, reset, startByDefault=False):
         self.points = points
         self.reset = reset
         self.startByDefault = startByDefault
@@ -78,7 +78,7 @@ class FunctionSequencer(Elaboratable): # Does signal.eq(value) where points is l
         return m
 
 class LFSR(Elaboratable):
-    def __init__(self, out=Signal(), domain="sync", taps=[25,16,14,13,11], run=1, reset=1, skip = 0):
+    def __init__(self, out, domain="sync", taps=[25,16,14,13,11], run=1, reset=1, skip = 0):
         self.out = out
         self.taps = taps
         self.run = run
@@ -115,7 +115,7 @@ class LFSR(Elaboratable):
         return m
 
 class Resizer(Elaboratable):
-    def __init__(self, datain, dataout, datastep=Signal(), enable=1): #datastep toggled for 1 cycle when new data is there when enlarging or when new data needs to be sampled when shrinking.
+    def __init__(self, datain, dataout, datastep, enable=1): #datastep toggled for 1 cycle when new data is there when enlarging or when new data needs to be sampled when shrinking.
         if len(datain) > len(dataout):
             assert len(datain) % len(dataout) == 0
             self.enlarge = False
@@ -396,6 +396,7 @@ class UARTDebugger2(Elaboratable):
                     m.d.comb += fifo.w_en.eq(self.enable)
                     if self.timeout >= 0:
                         m.d.sync += timer.eq(timer - 1)
+
             with m.State("Wait"):
                 m.d.sync += uart.rx.ack.eq(1)
                 with m.If(uart.rx.rdy):
@@ -403,17 +404,21 @@ class UARTDebugger2(Elaboratable):
                     if self.timeout >= 0:
                         m.d.sync += timer.eq(self.timeout)
                     m.next = "Pre-Transmit"
+
             with m.State("Pre-Transmit"):
                 sendByteFSM(ord('\n'), "Transmit-1")
+
             with m.State("Transmit-1"):
                 with m.If(fifo.r_rdy):
                     m.d.sync += fifo.r_en.eq(1)
                     m.next = "Transmit-2"
                 with m.Else():
                     m.next = "Collect"
+
             with m.State("Transmit-2"):
                 m.d.sync += fifo.r_en.eq(0)
                 m.next = "TransmitByte"
+
             with m.State("TransmitByte"):
                 sent = Signal(reset=0)
                 with m.If(uart.tx.rdy):
@@ -433,6 +438,68 @@ class UARTDebugger2(Elaboratable):
                             m.d.sync += word_sel.eq(word_sel - 1)
                 with m.Else():
                     m.d.sync += uart.tx.ack.eq(0)
+
             with m.State("Separator"):
                 sendByteFSM(ord('\n'), "Transmit-1")
+
+            with m.State("TransmitEnd"):
+                sendByteFSM(ord('Z'), "Collect")
         return m
+
+class __UARTDebuggerWrapper: # Not really usable, nMigen part of Gateware needs to be executed to determine signal sizes for this to be usable (and the read function isn't finished).
+    """UART Debugger Wrapper. It wraps an UARTDebugger2 for ease of use.
+    Parameters
+    ----------
+    depth : int
+        Maximum number of samples stored in the FIFO buffer
+    """
+    def __init__(self, depth):
+        assert(len(data) == words * 8)
+        self.depth = depth
+    
+    """Initialize FPGA side, add return value of this function as a submodule
+    Parameters
+    ----------
+    uart : AsyncSerial
+        UART interface from nmigen_stdio
+    data : Dictionary of Name, Signal, in
+        Data to sample
+    data_domain : string
+        Input clock domain
+    enable : Signal, in
+        Enable sampling
+    """
+    def init_fpga(self, uart, data, data_domain="sync", enable=1, timeout=-1):
+        current_bit = 0
+        data_format = [] # Array of [name, position, length]
+        signals     = [] # Signals to Cat
+
+        for key, value in data:
+            data_format.append([key, current_bit, len(value)])
+            current_bit += len(value)
+            signals.append(value)
+        
+        signals.append(Signal(len(Cat(signals)) % 8)) # Round it up to length 8 * n
+
+        self.debugger = debugger = UARTDebugger2(uart, int(len(Cat(signals)) / 8), self.depth, Cat(signals), data_domain, enable, timeout)
+        self.data_format = data_format
+        return debugger
+
+    """Read data from the UARTDebugger2
+    Parameters
+    ----------
+    callback : Function
+        It is called with a dictionary of all signals values, it is called once for each sample.
+    """
+    def read(callback):
+        port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
+        port.write(b"\x00")
+
+        while True:
+            #while True:
+            #    if port.read(1) == b'\n': break
+            if port.read(1) == b'\n': break
+        
+        for x in range(self.depth):
+            chars = port.read(5 * 2 + 1)
+            word = int(chars, 16)

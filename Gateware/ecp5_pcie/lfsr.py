@@ -21,7 +21,7 @@ class PCIeLFSR(Elaboratable):
     output : Signal(9 * bytes)
         output data for scrambling. XOR symbols with this to scramble. 9th bit is 0
     """
-    def __init__(self, bytes, reset = Signal(), advance = Signal()):
+    def __init__(self, bytes, reset, advance):
         self.reset = reset
         self.advance = advance
         self.output = Signal(9 * bytes)

@@ -18,6 +18,10 @@ class FCType(IntEnum):
     FC2 = 3
     UpdateFC = 2
 
+#
+# This implements the PCIe Data Link Layer
+#
+
 class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
     """
     PCIe Data Link Layer
@@ -53,13 +57,13 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         got_np = Signal()
         got_cpl = Signal()
 
-        m.d.comb += [
-            self.credits_tx.PH.eq(1000),
-            self.credits_tx.PD.eq(1000),
-            self.credits_tx.NPH.eq(1000),
-            self.credits_tx.NPD.eq(1000),
-            self.credits_tx.CPLH.eq(1000),
-            self.credits_tx.CPLD.eq(1000),
+        m.d.comb += [ # Fix this maybe
+            self.credits_tx.PH.eq(128),
+            self.credits_tx.PD.eq(2048),
+            self.credits_tx.NPH.eq(128),
+            self.credits_tx.NPD.eq(128),
+            self.credits_tx.CPLH.eq(128),
+            self.credits_tx.CPLD.eq(2048),
         ]
 
         # Which DLLPs to transmit, only concerning Flow Control Initialization

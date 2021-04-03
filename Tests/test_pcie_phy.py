@@ -51,7 +51,18 @@ class SERDESTestbench(Elaboratable):
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
         m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
-        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("tx"))
+        m.d.comb += platform.request("test", 1).o.eq(ClockSignal("rxf"))
+
+        def has_symbol(symbols, symbol):
+            assert len(symbols) % 9 == 0
+
+            has = 0
+
+            for i in range(int(len(symbols) / 9)):
+                has |= symbols[i * 9 : i * 9 + 9] == symbol
+            
+            return has
+                 
 
         if NO_DEBUG:
             pass
@@ -63,21 +74,31 @@ class SERDESTestbench(Elaboratable):
             # v = RX valid
             # D = DTR Temperature, does not correspond to real temperature besides the range of 21-29 °C. After that in 10 °C steps (30 = 40 °C, 31 = 50 °C etc...), see TN1266
 
+            start_condition = (phy.ltssm.debug_state == State.L0) & (lane.rx_symbol [0:9] == Ctrl.STP) # (lane.rx_symbol [0:9] == Ctrl.STP)
+
             time_since_state = Signal(64)
             
             with m.If(ltssm.debug_state != State.L0):
                 pass
                 #m.d.rx += time_since_state.eq(0)
             with m.Else():
-                #m.d.rx += time_since_state.eq(time_since_state + 1)
-                with m.If((lane.rx_symbol[0] == Ctrl.STP) | (lane.rx_symbol[1] == Ctrl.STP) | (lane.rx_symbol[2] == Ctrl.STP) | (lane.rx_symbol[3] == Ctrl.STP)):
-                    m.d.rx += time_since_state.eq(time_since_state + 1)
+                m.d.rx += time_since_state.eq(time_since_state + start_condition)
+                #with m.If(has_symbol(lane.rx_symbol, Ctrl.STP) & (phy.ltssm.debug_state == State.L0)):
+                #    m.d.rx += time_since_state.eq(time_since_state + 1)
+            
+            sample_data = Signal(range(CAPTURE_DEPTH))
+            with m.If(sample_data > 0):
+                m.d.rx += sample_data.eq(sample_data - 1)
+
+            with m.If(start_condition):
+                m.d.rx += sample_data.eq(CAPTURE_DEPTH - 1)
+
 
             m.submodules += UARTDebugger2(uart, 19, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,# lane.tx_symbol,
                 lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
-                ), "rx")#, enable = phy.ltssm.debug_state == State.L0)
+                ), "rx")#, enable = (sample_data != 0) | start_condition)#, enable = phy.ltssm.debug_state == State.L0)
 
         return m
 
