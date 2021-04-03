@@ -1,0 +1,5 @@
+Remove all declarations of Signal() from constructors, see https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments
+Figure out if SKP ordered sets are transmitted during TLPs
+Write udev rule
+5 GT/s switching
+SKP thingie
