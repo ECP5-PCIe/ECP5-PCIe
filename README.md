@@ -13,14 +13,14 @@ There already exists a PCIe physical layer by whitequark called [Yumewatari](htt
 ## INSTALL
 Execute `python setup.py develop` in the Gateware folder
 
+## SIMULATE
+- Execute `python test_pcie_virtual.py` in the Tests folder to run the simulation
+- Execute `gtkwave test.gtkw` to view the results
+
 ## SETUP
 https://github.com/ECP5-PCIe/ECP5-PCIe/wiki/Setup
 
 If you have a Versa board, additionally run `openocd -f ispCLOCK/ispCLOCK-200MHz.cfg` to setup the ispCLOCK chip. For that you need to set J50 to connect pins 2-4 and 5-6. After you are done, set them back to 1-2 and 3-5.
-
-## SIMULATE
-- Execute `python test_pcie_virtual.py` in the Tests folder to run the simulation
-- Execute `gtkwave test.gtkw` to view the results
 
 ## RUN
 - Enable PCIe on the connected device (for example on the ROCKPro64 execute `pci init` in u-boot)
