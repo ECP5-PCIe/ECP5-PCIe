@@ -11,11 +11,11 @@ class PCIePhy(Elaboratable):
     """
     A PCIe Phy
     """
-    def __init__(self, lane):
-        self.descrambled_lane = PCIeScrambler(lane)
+    def __init__(self, lane, upstream = True):
+        self.descrambled_lane = PCIeScrambler(lane, Signal())
         self.rx = PCIePhyRX(lane, self.descrambled_lane, 16)
         self.tx = PCIePhyTX(self.descrambled_lane, 16)
-        self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
+        self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx, upstream=upstream) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
         self.dllp_rx = PCIeDLLPReceiver(self.rx.source)
         self.dllp_tx = PCIeDLLPTransmitter()
 

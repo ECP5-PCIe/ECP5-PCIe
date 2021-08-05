@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
@@ -88,6 +89,11 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             if(clkfreq == 200e6):
                 self.divide_clk = 1
         self.speed_5GTps = speed_5GTps
+
+        class DebugSignals:
+            dco_status = Signal(8)
+
+        self.debug = DebugSignals() # Named signals for debugging
     
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -150,22 +156,23 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         #
         vals_ch_write = [ # LSB first
-            #["16", "----0---"],
-            #["18", "------10"],
-            #["04", "----1--1"], # CTC bypass and lsm_disable
-            #["05", "----00--"], # Disanble skip match
-            #["1A", "---1----"], # pden_sel
-            #["1B", "------00"], # los_en
-            #["18", "----1---"],
+            #[0x16, "----0---"],
+            #[0x18, "------10"],
+            #[0x04, "----1--1"], # CTC bypass and lsm_disable
+            #[0x05, "----00--"], # Disanble skip match
+            #[0x1A, "---1----"], # pden_sel
+            #[0x1B, "------00"], # los_en
+            #[0x18, "----1---"],
         ]
 
         vals_du_write = [ # LSB first
-            #["0B", "11-----0"],
-            #["18", "----1---"],
+            #[0x0B, "11-----0"],
+            #[0x18, "----1---"],
         ]
 
         vals_ch_read = [
-            #["16", test1], # Read address 16 to test1
+            #[0x37, self.debug.dco_status], # Read address 16 to test1
+            [0x0B, self.debug.dco_status], # Read address 16 to test1
         ]
 
         vals_du_read = [

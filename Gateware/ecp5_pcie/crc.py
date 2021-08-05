@@ -83,7 +83,7 @@ class CRC(Elaboratable):
         self.polynomial = polynomial
         self.crc_size   = crc_size
     
-    def elaborate(self, platform):
+    def elaborate(self, platform): # TODO: Apparently this generates 512 wires
         m = Module()
 
         last = self.output

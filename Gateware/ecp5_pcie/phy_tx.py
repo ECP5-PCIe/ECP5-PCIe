@@ -56,6 +56,8 @@ class PCIePhyTX(Elaboratable):
         #m.submodules.fifo = fifo = self.fifo
         #m.d.rx += fifo.r_en.eq(0)
 
+        m.d.rx += self.start_send_ts.eq(0)
+
         skp_counter = Signal(range(int(1538)))
         skp_accumulator = Signal(4)
         

@@ -102,10 +102,23 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.rx_locked    = Signal()
         self.rx_aligned   = Signal()
 
-        self.rx_symbol    = Signal(ratio * 9)
+        ctrl_set = set(item.value for item in Ctrl)
+
+        def symbol_decoder(value : int):
+            result = ""
+            for i in range(ratio):
+                val = (value >> (9 * i)) & 0x1FF
+                if val in ctrl_set:
+                    result += Ctrl(val).name + " "
+                else:
+                    result += hex(val)[2:] + " "
+            
+            return result
+
+        self.rx_symbol    = Signal(ratio * 9, decoder=symbol_decoder)
         self.rx_valid     = Signal(ratio)
 
-        self.tx_symbol    = Signal(ratio * 9)
+        self.tx_symbol    = Signal(ratio * 9, decoder=symbol_decoder)
         self.tx_set_disp  = Signal(ratio)
         self.tx_disp      = Signal(ratio)
         self.tx_e_idle    = Signal(ratio)
@@ -132,31 +145,33 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
     perform bit alignment and not symbol alignment.
     """
     def __init__(self, lane : PCIeSERDESInterface):
-        self.ratio        = lane.ratio
+        super().__init__(lane.ratio)
 
-        self.rx_invert    = lane.rx_invert
-        self.rx_align     = lane.rx_align
-        self.rx_present   = lane.rx_present
-        self.rx_locked    = lane.rx_locked
-        self.rx_aligned   = lane.rx_aligned
-
-        self.rx_symbol    = Signal(lane.ratio * 9)
-        self.rx_valid     = Signal(lane.ratio)
-
-        self.tx_symbol    = Signal(lane.ratio * 9)
-        self.tx_set_disp  = Signal(lane.ratio)
-        self.tx_disp      = Signal(lane.ratio)
-        self.tx_e_idle    = Signal(lane.ratio)
-
-        self.det_enable   = lane.det_enable
-        self.det_valid    = lane.det_valid
-        self.det_status   = lane.det_status
-
-        self.frequency    = lane.frequency
-        self.speed        = lane.speed
-
-        self.reset        = lane.reset
-        self.reset_done   = lane.reset_done
+        #self.ratio        = lane.ratio
+#
+        #self.rx_invert    = lane.rx_invert
+        #self.rx_align     = lane.rx_align
+        #self.rx_present   = lane.rx_present
+        #self.rx_locked    = lane.rx_locked
+        #self.rx_aligned   = lane.rx_aligned
+#
+        #self.rx_symbol    = Signal(lane.ratio * 9)
+        #self.rx_valid     = Signal(lane.ratio)
+#
+        #self.tx_symbol    = Signal(lane.ratio * 9)
+        #self.tx_set_disp  = Signal(lane.ratio)
+        #self.tx_disp      = Signal(lane.ratio)
+        #self.tx_e_idle    = Signal(lane.ratio)
+#
+        #self.det_enable   = lane.det_enable
+        #self.det_valid    = lane.det_valid
+        #self.det_status   = lane.det_status
+#
+        #self.frequency    = lane.frequency
+        #self.speed        = lane.speed
+#
+        #self.reset        = lane.reset
+        #self.reset_done   = lane.reset_done
 
         self.__lane = lane
 
@@ -212,34 +227,35 @@ class PCIeScrambler(PCIeSERDESInterface):
     """
     Scrambler and Descrambler for PCIe, needs to be after an aligner
     """
-    def __init__(self, lane : PCIeSERDESInterface, enable = Signal()):
-        self.ratio        = lane.ratio
-
-        self.rx_invert    = lane.rx_invert
-        self.rx_align     = lane.rx_align
-        self.rx_present   = lane.rx_present
-        self.rx_locked    = lane.rx_locked
-        self.rx_aligned   = lane.rx_aligned
-
-        self.rx_symbol    = Signal(lane.ratio * 9)
-        self.rx_valid     = Signal(lane.ratio)
-
-        self.tx_symbol    = Signal(lane.ratio * 9)
-        self.tx_set_disp  = Signal(lane.ratio)
-        self.tx_disp      = Signal(lane.ratio)
-        self.tx_e_idle    = Signal(lane.ratio)
-
-        self.det_enable   = lane.det_enable
-        self.det_valid    = lane.det_valid
-        self.det_status   = lane.det_status
-
+    def __init__(self, lane : PCIeSERDESInterface, enable : Signal):
+        super().__init__(lane.ratio)
+        #self.ratio        = lane.ratio
+#
+        #self.rx_invert    = lane.rx_invert
+        #self.rx_align     = lane.rx_align
+        #self.rx_present   = lane.rx_present
+        #self.rx_locked    = lane.rx_locked
+        #self.rx_aligned   = lane.rx_aligned
+#
+        #self.rx_symbol    = Signal(lane.ratio * 9)
+        #self.rx_valid     = Signal(lane.ratio)
+#
+        #self.tx_symbol    = Signal(lane.ratio * 9)
+        #self.tx_set_disp  = Signal(lane.ratio)
+        #self.tx_disp      = Signal(lane.ratio)
+        #self.tx_e_idle    = Signal(lane.ratio)
+#
+        #self.det_enable   = lane.det_enable
+        #self.det_valid    = lane.det_valid
+        #self.det_status   = lane.det_status
+#
         self.enable       = enable
-
-        self.frequency    = lane.frequency
-        self.speed        = lane.speed
-        
-        self.reset        = lane.reset
-        self.reset_done   = lane.reset_done
+#
+        #self.frequency    = lane.frequency
+        #self.speed        = lane.speed
+        #
+        #self.reset        = lane.reset
+        #self.reset_done   = lane.reset_done
 
         self.__lane = lane
 

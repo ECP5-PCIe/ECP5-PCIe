@@ -206,8 +206,13 @@ class SERDESTestbench(Elaboratable):
             # 8o 8c 64t 64r 32i 6T 1v 1- 8l 5L o O 1-
             # o = old state, c = current state, t = time, r = realtime, i = idle count, T = temperature, v = temperature valid, - = empty, l = link, L = lane, o = link valid, O = lane valid
             # preceding number is number of bits
+            #debug = UARTDebugger2(uart, 25, CAPTURE_DEPTH, Cat(
+            #    last_state, ltssm.debug_state, time, realtime_rx, Signal(32), dtr.temperature, Signal(1), dtr.valid,
+            #    phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
+            #    ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
+
             debug = UARTDebugger2(uart, 25, CAPTURE_DEPTH, Cat(
-                last_state, ltssm.debug_state, time, realtime_rx, Signal(32), dtr.temperature, Signal(1), dtr.valid,
+                last_state, ltssm.debug_state, time, realtime_rx, serdes.debug.dco_status, Signal(24), dtr.temperature, Signal(1), dtr.valid,
                 phy_rx.ts.link.number, phy_rx.ts.lane.number, phy_rx.ts.link.valid, phy_rx.ts.lane.valid, Signal(1)
                 ), "rx", ltssm.debug_state != last_state, timeout=100 * 1000 * 1000)
         
@@ -385,7 +390,8 @@ if __name__ == "__main__":
                     print("{:,}".format(lane), end="V\t" if lane_valid else " \t")
                     print(State(old).name, end="->")
                     print(State(new).name, end=" ")
-                    print(idl, end="\n\n" if new == State.Detect_Quiet else "\n")
+                    #print(idl, end="\n\n" if new == State.Detect_Quiet else "\n")
+                    print(bin(idl), end="\n\n" if new == State.Detect_Quiet else "\n")
                     last_time = time
                     last_realtime = realtime
 
