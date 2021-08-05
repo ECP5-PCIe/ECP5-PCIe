@@ -36,12 +36,12 @@ class PCIeDLLPTransmitter(Elaboratable):
     """
     def __init__(self, ratio = 4):
         self.dllp = Record(dllp_layout)
-        self.source = StreamInterface(9, ratio)
+        self.phy_source = StreamInterface(9, ratio)
         self.send = Signal()
         self.started_sending = Signal()
         self.enable = Signal(reset = 1)
-        assert len(self.source.symbol) == 4
-        self.ratio = len(self.source.symbol)
+        assert len(self.phy_source.symbol) == 4
+        self.ratio = len(self.phy_source.symbol)
 
         self.dllp_data = Signal(4 * 8)
 
@@ -70,29 +70,29 @@ class PCIeDLLPTransmitter(Elaboratable):
 
         with m.If(dllp.valid & (self.send | which_half)):
             for i in range(4):
-                m.d.comb += self.source.valid[i].eq(1)
+                m.d.comb += self.phy_source.valid[i].eq(1)
 
             with m.If(~which_half):
                 m.d.rx += which_half.eq(1)
-                m.d.comb += self.source.symbol[0].eq(Ctrl.SDP)
+                m.d.comb += self.phy_source.symbol[0].eq(Ctrl.SDP)
                 m.d.comb += self.started_sending.eq(1)
 
                 for i in range(self.ratio - 1):
-                    m.d.comb += self.source.symbol[i + 1].eq(dllp_bytes[8 * i : 8 * i + 8])
+                    m.d.comb += self.phy_source.symbol[i + 1].eq(dllp_bytes[8 * i : 8 * i + 8])
 
             with m.Else():
                 m.d.rx += which_half.eq(0)
                 m.d.comb += self.started_sending.eq(0)
                 for i in range(self.ratio - 1):
-                    m.d.comb += self.source.symbol[i].eq(dllp_bytes[8 * i + (self.ratio - 1) * 8 : 8 * i + 8 + (self.ratio - 1) * 8])
+                    m.d.comb += self.phy_source.symbol[i].eq(dllp_bytes[8 * i + (self.ratio - 1) * 8 : 8 * i + 8 + (self.ratio - 1) * 8])
 
-                m.d.comb += self.source.symbol[3].eq(Ctrl.END)
+                m.d.comb += self.phy_source.symbol[3].eq(Ctrl.END)
 
         with m.Else():
             m.d.rx += which_half.eq(0)
             m.d.comb += self.started_sending.eq(0)
             for i in range(4):
-                m.d.comb += self.source.valid[i].eq(0)
+                m.d.comb += self.phy_source.valid[i].eq(0)
 
         return m
 
@@ -100,11 +100,11 @@ class PCIeDLLPReceiver(Elaboratable):
     """
     PCIe Data Link Layer Packet receiver
     """
-    def __init__(self, source : StreamInterface):
+    def __init__(self, phy_sink : StreamInterface):
         self.dllp = Record(dllp_layout)
-        self.source = source
-        assert len(self.source.symbol) == 4
-        self.ratio = len(self.source.symbol)
+        self.phy_sink = phy_sink
+        assert len(self.phy_sink.symbol) == 4
+        self.ratio = len(self.phy_sink.symbol)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -117,14 +117,14 @@ class PCIeDLLPReceiver(Elaboratable):
 
         m.submodules.crc = crc = SingleCRC(dllp_bytes[:4 * 8], 0xFFFF, 0x100B, 16)
 
-        with m.If(self.source.symbol[0] == Ctrl.SDP):
+        with m.If(self.phy_sink.symbol[0] == Ctrl.SDP):
             for i in range(self.ratio - 1):
-                m.d.rx += Cat(dllp_bytes[8 * i : 8 * i + 8]).eq(self.source.symbol[i + 1])
+                m.d.rx += Cat(dllp_bytes[8 * i : 8 * i + 8]).eq(self.phy_sink.symbol[i + 1])
             m.d.rx += valid.eq(0)
 
-        with m.Elif(self.source.symbol[3] == Ctrl.END):
+        with m.Elif(self.phy_sink.symbol[3] == Ctrl.END):
             for i in range(self.ratio - 1):
-                m.d.rx += Cat(dllp_bytes[8 * i + (self.ratio - 1) * 8: 8 * i + 8 + (self.ratio - 1) * 8]).eq(self.source.symbol[i])
+                m.d.rx += Cat(dllp_bytes[8 * i + (self.ratio - 1) * 8: 8 * i + 8 + (self.ratio - 1) * 8]).eq(self.phy_sink.symbol[i])
         
         m.d.rx += valid.eq(~Cat(crc.output[::-1]) == dllp_bytes[8 * 4:])
 

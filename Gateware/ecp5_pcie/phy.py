@@ -36,7 +36,7 @@ class PCIePhy(Elaboratable):
 
         m.d.comb += self.dll.speed.eq(self.descrambled_lane.speed)
 
-        self.dllp_tx.source.connect(self.tx.sink, m.d.comb)
+        self.dllp_tx.phy_source.connect(self.tx.sink, m.d.comb)
 
         #m.submodules.dlrx=    self.dllp_rx
         #m.submodules.dltx=    self.dllp_tx

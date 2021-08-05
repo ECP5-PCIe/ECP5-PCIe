@@ -87,7 +87,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         platform.add_clock_constraint(self.rx_clk, 125e6 if self.speed_5GTps else 625e5) # For NextPNR, set the maximum clock frequency such that errors are given
         platform.add_clock_constraint(self.tx_clk, 125e6 if self.speed_5GTps else 625e5)
 
-        m.submodules.lane = lane = PCIeSERDESInterface(4) Uhh is this supposed to be here?
+        m.submodules.lane = lane = PCIeSERDESInterface(4) # TODO: Uhh is this supposed to be here? // I think it might be the fast lane
 
         # IF SOMETHING IS BROKE: Check if the TX actually transmits good data and not order-swapped data
         m.d.rxf += self.rx_clk.eq(~self.rx_clk)
