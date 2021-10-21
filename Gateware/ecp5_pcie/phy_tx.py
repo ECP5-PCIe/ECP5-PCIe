@@ -16,7 +16,7 @@ class PCIePhyTX(Elaboratable):
         PCIe lane
     ts : Record(ts_layout)
         Data to send
-    fifo_depth : int
+    fifo_depth : int TODO: remove this, also in RX
         How deep the FIFO to store data to transmit is
     ready : Signal()
         Asserted by LTSSM to enable data transmission
@@ -32,7 +32,7 @@ class PCIePhyTX(Elaboratable):
         self.idle = Signal()
         self.sending_ts = Signal()
         self.ready = Signal()
-        self.sink = StreamInterface(9, lane.ratio)
+        self.sink = StreamInterface(9, lane.ratio, name="PHY_Sink")
         self.enable_higher_layers = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
@@ -50,6 +50,7 @@ class PCIePhyTX(Elaboratable):
         def send(*ssymbols):
             for i in range(ratio):
                 m.d.comb += symbols[i].eq(ssymbols[i])
+        
 
 
         # Store data to be sent
@@ -82,7 +83,7 @@ class PCIePhyTX(Elaboratable):
                 sending_old = Signal()
                 # When a TLP starts, set sending_data to 1 and reset it when it ends.
                 # (self.in_symbols[0:9] == Ctrl.SDP) | 
-                sending_data = ((self.sink.symbol[0] == Ctrl.STP)
+                sending_data = ((self.sink.symbol[0] == Ctrl.STP) | (self.sink.symbol[0] == Ctrl.SDP) # TODO: This might insert SKP sets in the beginning of a TLP since the pipeline takes a while and the ready signal might be buggy
                 | sending_old) & ~((self.sink.symbol[3] == Ctrl.END) | (self.sink.symbol[3] == Ctrl.EDB))
 
                 m.d.rx += sending_old.eq(sending_data)
@@ -90,10 +91,19 @@ class PCIePhyTX(Elaboratable):
 
                 m.d.comb += self.sink.ready.eq(1)
 
+
+                last_symbols = [Signal(9) for _ in range(ratio)]
+
+                for i in range(ratio):
+                    m.d.rx += last_symbols[i].eq(self.sink.symbol[i])
+
                 # Send SKP ordered sets when the accumulator is above 0
-                with m.If(skp_accumulator > 0):# & ~sending_data):
-                    send(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)
+                #with m.If(skp_accumulator > 0):
+                #    m.d.comb += self.sink.ready.eq(0)
+
+                with m.If((skp_accumulator > 0) & (~sending_data | ((last_symbols[3] == Ctrl.END) | (last_symbols[3] == Ctrl.EDB)))):
                     m.d.comb += self.sink.ready.eq(0)
+                    send(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)
                     m.d.rx += [
                         self.enable_higher_layers.eq(0),
                         skp_accumulator.eq(skp_accumulator - 1),

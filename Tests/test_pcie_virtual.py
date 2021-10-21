@@ -25,6 +25,8 @@ class VirtualPCIeTestbench(Elaboratable):
         self.phy_u.ltssm.simulate = True
         self.phy_d.ltssm.simulate = True
 
+        self.send_skp = Signal()
+
     def elaborate(self, platform):
         m = Module()
 
@@ -34,6 +36,9 @@ class VirtualPCIeTestbench(Elaboratable):
 
         m.d.comb += self.serdes_u.lane.rx_symbol.eq(self.serdes_d.lane.tx_symbol)
         m.d.comb += self.serdes_d.lane.rx_symbol.eq(self.serdes_u.lane.tx_symbol)
+
+
+        m.d.comb += self.send_skp.eq(self.serdes_d.lane.tx_symbol == Cat(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP))
 
 
         refclkcounter = self.refclkcounter
@@ -105,16 +110,22 @@ if __name__ == "__main__":
 
     def process():
         a = 1
+        last_state = 0
         for i in range(100 * 1000 * 24):
-            if i == a:
-                print(i)
-                a *= 2
+            state = State((yield pcie.phy_d.ltssm.debug_state)).name
+            print(i, end="\r")
+            if(state != last_state):
+                print(state, end="                 \n")
+            #if i == a:
+            #    print(i, end="\r")
+            #    a *= 2
             yield
+            last_state = state
 
     sim.add_sync_process(process, domain="sync")
 
     traces = [pcie.serdes_d.lane.tx_symbol, pcie.refclkcounter, pcie.phy_d.ltssm.debug_state, pcie.phy_u.ltssm.debug_state, pcie.phy_d.descrambled_lane.tx_symbol,
-             ]
+             pcie.send_skp]
 
     with sim.write_vcd("test.vcd", "test.gtkw", traces=traces):
         sim.run()

@@ -75,7 +75,7 @@ class CRC(Elaboratable):
     reset : Signal()
         Reset CRC Generator
     """
-    def __init__(self, input, init, polynomial, crc_size, reset = Signal()):
+    def __init__(self, input, init, polynomial, crc_size, reset):
         self.input      = input
         self.output     = Signal(crc_size, reset = init)
         self.init       = init

@@ -36,7 +36,7 @@ class PCIePhyRX(Elaboratable):
         self.consecutive = Signal()
         self.inverted = Signal()
         self.ready = Signal()
-        self.source = StreamInterface(9, raw_lane.ratio)
+        self.source = StreamInterface(9, raw_lane.ratio, name="PHY_Source")
     
     """
     Whether the symbol is in the current RX data

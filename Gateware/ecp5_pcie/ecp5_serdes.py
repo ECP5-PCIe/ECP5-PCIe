@@ -352,7 +352,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "i_D_REFCLKI"             :self.ref_clk,
             "o_D_FFS_PLOL"            :tx_lol,
             "p_D_REFCK_MODE"          :"0b100",   # 25x ref_clk
-            "p_D_TX_MAX_RATE"         :"2.5",     # 2.5 Gbps
+            "p_D_TX_MAX_RATE"         :"5.0" if self.speed_5GTps else "2.5", # How many Gbps
             "p_D_TX_VCO_CK_DIV"       :"0b000",   # DIV/1
             "p_D_BITCLK_LOCAL_EN"     :"0b1",     # undocumented (PCIe sample code used)
             "p_D_SYNC_LOCAL_EN"       :"0b1",
@@ -424,9 +424,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
 
             "p_CHx_AUTO_FACQ_EN"      :"0b1",     # undocumented (wizard value used)
-            "p_CHx_AUTO_CALIB_EN"     :"0b1",     # undocumented (wizard value used)t
+            "p_CHx_AUTO_CALIB_EN"     :"0b1",     # undocumented (wizard value used)
             #"p_CHx_BAND_THRESHOLD"    :"0b00",
-            "p_CHx_CDR_MAX_RATE"      :"2.5",     # 2.5 Gbps
+            "p_CHx_CDR_MAX_RATE"      :"5.0" if self.speed_5GTps else "2.5", # How many Gbps
             "p_CHx_RX_DCO_CK_DIV"     :"0b000",   # DIV/1
             "p_CHx_PDEN_SEL"          :"0b1",     # phase detector disabled on ~LOS
             "p_CHx_SEL_SD_RX_CLK"     :"0b1",     # FIFO driven by recovered clock
@@ -523,8 +523,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "p_CHx_TDRV_SLICE5_SEL"   :"0b00",    # power down
 
             # TX CH ­— clocking
-            "o_CHx_FF_TX_PCLK"        :tx_clk_o, # Output from SERDES
-            "i_CHx_FF_TXI_CLK"        :tx_clk_i, # Input to SERDES
+            "o_CHx_FF_TX_PCLK"        :tx_clk_o,  # Output from SERDES
+            "i_CHx_FF_TXI_CLK"        :tx_clk_i,  # Input to SERDES
 
             "p_CHx_TX_GEAR_MODE"      :gearing_str,    # 1:2 gearbox
             "p_CHx_FF_TX_H_CLK_EN"    :gearing_str,    # disable DIV/1 output clock
@@ -534,7 +534,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
             # TX CH — data
             **{"o_CHx_FF_TX_D_%d" % n :self.tx_bus[n] for n in range(self.tx_bus.width)}, # Connect TX SERDES inputs to the signals
-            "p_CHx_ENC_BYPASS"        :"0b0",
+            "p_CHx_ENC_BYPASS"        :"0b0",          # Bypass 8b10b
 
             # CHx DET
             "i_CHx_FFC_PCIE_DET_EN"   :pcie_det_en,

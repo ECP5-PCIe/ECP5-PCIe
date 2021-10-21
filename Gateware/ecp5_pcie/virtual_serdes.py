@@ -57,7 +57,7 @@ class VirtualPCIeSERDESx4(Elaboratable): # Based on Yumewatari
         #self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
         #self.serdes = self.__serdes # For testing
 
-        #self.lane.frequency = int(self.__serdes.lane.frequency / 2)
+        self.lane.frequency = 25e6#int(self.__serdes.lane.frequency / 2)
 
         #self.debug = self.__serdes.debug
     

@@ -62,8 +62,8 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
             self.credits_tx.PD.eq(2048),
             self.credits_tx.NPH.eq(128),
             self.credits_tx.NPD.eq(128),
-            self.credits_tx.CPLH.eq(128),
-            self.credits_tx.CPLD.eq(2048),
+            self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
+            self.credits_tx.CPLD.eq(0), #
         ]
 
         # Which DLLPs to transmit, only concerning Flow Control Initialization
@@ -72,7 +72,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         done_dllp_transmission = Signal()
 
         # For later use
-        sending_tlp = Signal()
+        sending_tlp = Signal() # TODO: Connect this wire for proper operation
 
         # Get update DLLPs
         with m.If(~self.ltssm.status.link.up):
@@ -139,20 +139,21 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 # This is supposed to be in the above state, but does it matter?
                 m.d.rx += self.up.eq(1)
 
-                # Send DLLP UpdateFC packets often enough, assumes 125 MHz clock, tranmits every 25 µs if there is no other ongoing transmission
+                # Send DLLP UpdateFC packets often enough, assumes 125 MHz clock, transmits every 25 µs if there is no other ongoing transmission
                 clk = self.clk_freq
                 min_delay = 25E-6
-                update_timer =  Signal(range(int(min_delay * clk + 1)))
+                update_timer = Signal(range(int(min_delay * clk + 1)))
 
                 m.d.rx += update_timer.eq(update_timer + 1)
+                m.d.rx += transmit_dllps.eq(0)
 
                 with m.If(((update_timer << self.speed) >= int(min_delay * clk)) & ~sending_tlp):
                     m.d.rx += fc_type.eq(FCType.UpdateFC)
                     m.d.rx += transmit_dllps.eq(1)
                     m.d.rx += done_dllp_transmission.eq(0)
                     m.d.rx += update_timer.eq(0)
-                with m.Elif(done_dllp_transmission):
-                    m.d.rx += transmit_dllps.eq(0)
+                #with m.Elif(done_dllp_transmission):
+                #    m.d.rx += transmit_dllps.eq(0)
                     
                 with m.If(~self.ltssm.status.link.up): # TODO: Why does it cause u-boot on the RP64 to reboot?
                     m.next = State.DL_Inactive
@@ -167,9 +168,9 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
 
             # Const(n, 2) means n = 0: P, n = 1: NP, n = 2: CPL
             with m.State("P"):
-                with m.If(~transmit_dllps):
-                    m.d.rx += done_dllp_transmission.eq(0)
-                    m.next = "Idle"
+                #with m.If(~transmit_dllps):
+                #    m.d.rx += done_dllp_transmission.eq(0)
+                #    m.next = "Idle"
 
                 m.d.rx += [
                     self.tx.dllp.type.eq(Cat(Const(0, 2), fc_type)),
@@ -184,9 +185,9 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                     m.next = "NP"
 
             with m.State("NP"):
-                with m.If(~transmit_dllps):
-                    m.d.rx += done_dllp_transmission.eq(0)
-                    m.next = "Idle"
+                #with m.If(~transmit_dllps):
+                #    m.d.rx += done_dllp_transmission.eq(0)
+                #    m.next = "Idle"
                     
                 m.d.rx += [
                     self.tx.dllp.type.eq(Cat(Const(1, 2), fc_type)),
@@ -200,9 +201,9 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                     m.next = "CPL"
 
             with m.State("CPL"):
-                with m.If(~transmit_dllps):
-                    m.d.rx += done_dllp_transmission.eq(0)
-                    m.next = "Idle"
+                #with m.If(~transmit_dllps):
+                #    m.d.rx += done_dllp_transmission.eq(0)
+                #    m.next = "Idle"
                     
                 m.d.rx += [
                     self.tx.dllp.type.eq(Cat(Const(2, 2), fc_type)),

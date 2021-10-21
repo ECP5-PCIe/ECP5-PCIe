@@ -172,6 +172,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 #
         #self.reset        = lane.reset
         #self.reset_done   = lane.reset_done
+        self.frequency = lane.frequency
 
         self.__lane = lane
 
@@ -227,7 +228,7 @@ class PCIeScrambler(PCIeSERDESInterface):
     """
     Scrambler and Descrambler for PCIe, needs to be after an aligner
     """
-    def __init__(self, lane : PCIeSERDESInterface, enable : Signal):
+    def __init__(self, lane : PCIeSERDESInterface):#, enable : Signal):
         super().__init__(lane.ratio)
         #self.ratio        = lane.ratio
 #
@@ -249,7 +250,7 @@ class PCIeScrambler(PCIeSERDESInterface):
         #self.det_valid    = lane.det_valid
         #self.det_status   = lane.det_status
 #
-        self.enable       = enable
+        self.enable        = Signal()
 #
         #self.frequency    = lane.frequency
         #self.speed        = lane.speed
@@ -294,8 +295,18 @@ class PCIeScrambler(PCIeSERDESInterface):
         #with m.Else():
         #    m.d.rx += self.rx_symbol.eq(self.__lane.rx_symbol)
 
-        scramble(self.__lane.rx_symbol, self.rx_symbol, 1)
+        scramble(self.__lane.rx_symbol, self.rx_symbol, self.enable)
         scramble(self.tx_symbol, self.__lane.tx_symbol, self.enable)
+
+        i1 = Signal(len(self.__lane.rx_symbol)) # TODO: This is for debug, remove
+        o1 = Signal(len(self.rx_symbol))
+        i2 = Signal(len(self.tx_symbol))
+        o2 = Signal(len(self.__lane.tx_symbol))
+
+        m.d.rx += i1.eq(self.__lane.rx_symbol)
+        m.d.rx += o1.eq(self.rx_symbol)
+        m.d.rx += i2.eq(self.tx_symbol)
+        m.d.rx += o2.eq(self.__lane.tx_symbol)
 
         # This is necessary because the scrambling already takes one clock cycle
         m.d.rx += self.rx_valid.eq(self.__lane.rx_valid)

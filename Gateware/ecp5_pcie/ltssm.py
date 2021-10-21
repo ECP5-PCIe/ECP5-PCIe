@@ -48,7 +48,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         An upstream port is the port type on a PCIe card which connects to a root hub or a switch.
         Within a device it is the port closest to the root complex, others are downstream ports (if it has only one connection towards the root complex)
     """
-    def __init__(self, lane : PCIeSERDESInterface, tx : PCIePhyTX, rx : PCIePhyRX, upstream = True):
+    def __init__(self, lane : PCIeSERDESInterface, tx : PCIePhyTX, rx : PCIePhyRX, upstream = True, disable_scrambling = False):
         assert lane.ratio == 4
         self.lane = lane
         self.status = Record(ltssm_layout)
@@ -64,6 +64,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         self.clocks_per_ms = 62500
         self.simulate = False # Set to true to make it go faster, for example only count to 64 instead of 1024 TS in Polling.Active
         self.timer = Signal(range(64 * self.clocks_per_ms + 1))
+
+        self.disable_scrambling = disable_scrambling
 
     def elaborate(self, platform: Platform) -> Module: # TODO: Think about clock domains! (assuming RX, TX pll lock, the discrepancy is 0 on average)
         m = Module()
@@ -101,7 +103,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
         # Disable scrambling when the disable_scrambling bit is 1
         scrambling = Signal()
-        #m.d.rx += scrambling.eq(scrambling & ~rx.ts.ctrl.disable_scrambling)
+        m.d.rx += scrambling.eq(scrambling & ~rx.ts.ctrl.disable_scrambling) # TODO: Why was this commented out?
+        m.d.rx += tx.ts.ctrl.disable_scrambling.eq(self.disable_scrambling) # TODO: Maybe this is not spec compliant if the other side requests scrambling
 
         # Is set when transitioning to Detect.Active and reset in Detect.Quiet
         ready_reset = Signal()
@@ -177,7 +180,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
-                timeout(12, State.Detect_Active, (lane.reset_done | lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
+                timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done | lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
 
 
             with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes

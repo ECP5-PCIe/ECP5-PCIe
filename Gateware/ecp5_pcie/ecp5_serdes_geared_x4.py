@@ -47,6 +47,9 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         self.gearing = 4
 
+        assert DCU == 0 or DCU == 1
+        assert CH == 0 or CH == 1
+        
         self.DCU = DCU
         self.CH = CH
 
@@ -90,6 +93,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         m.submodules.lane = lane = PCIeSERDESInterface(4) # TODO: Uhh is this supposed to be here? // I think it might be the fast lane
 
         # IF SOMETHING IS BROKE: Check if the TX actually transmits good data and not order-swapped data
+        # TODO: Maybe use hardware divider? Though this seems to be fine
         m.d.rxf += self.rx_clk.eq(~self.rx_clk)
 
         with m.If(~self.rx_clk):

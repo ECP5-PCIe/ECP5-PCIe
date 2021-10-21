@@ -4,7 +4,7 @@ from nmigen.lib.fifo import SyncFIFOBuffered
 
 from enum import IntEnum
 from .layouts import dllp_layout
-from .serdes import K, D, Ctrl, PCIeScrambler
+from .serdes import K, D, Ctrl
 from .crc import SingleCRC
 from .stream import StreamInterface
 
@@ -36,11 +36,12 @@ class PCIeDLLPTransmitter(Elaboratable):
     """
     def __init__(self, ratio = 4):
         self.dllp = Record(dllp_layout)
-        self.phy_source = StreamInterface(9, ratio)
+        self.phy_source = StreamInterface(9, ratio, name="PHY_Source")
+        self.dllp_sink = StreamInterface(9, ratio, name="DLLP_Sink")
         self.send = Signal()
         self.started_sending = Signal()
-        self.enable = Signal(reset = 1)
         assert len(self.phy_source.symbol) == 4
+        assert len(self.dllp_sink.symbol) == 4
         self.ratio = len(self.phy_source.symbol)
 
         self.dllp_data = Signal(4 * 8)
@@ -68,31 +69,40 @@ class PCIeDLLPTransmitter(Elaboratable):
         # First or second half of DLLP
         which_half = Signal()
 
-        with m.If(dllp.valid & (self.send | which_half)):
-            for i in range(4):
-                m.d.comb += self.phy_source.valid[i].eq(1)
+        m.d.comb += self.dllp_sink.ready.eq(0)
 
-            with m.If(~which_half):
-                m.d.rx += which_half.eq(1)
-                m.d.comb += self.phy_source.symbol[0].eq(Ctrl.SDP)
-                m.d.comb += self.started_sending.eq(1)
+        with m.If(self.phy_source.ready):
+            m.d.comb += self.dllp_sink.ready.eq(1)
+            with m.If(self.dllp_sink.all_valid):
+                for i in range(self.ratio):
+                    m.d.rx += self.phy_source.symbol[i].eq(self.dllp_sink.symbol[i])
+                    m.d.rx += self.phy_source.valid[i].eq(self.dllp_sink.valid[i]) # TODO: Fix this
 
-                for i in range(self.ratio - 1):
-                    m.d.comb += self.phy_source.symbol[i + 1].eq(dllp_bytes[8 * i : 8 * i + 8])
+            with m.Elif(dllp.valid & (self.send | which_half)):
+                for i in range(4):
+                    m.d.rx += self.phy_source.valid[i].eq(1)
+
+                with m.If(~which_half):
+                    m.d.rx += which_half.eq(1)
+                    m.d.rx += self.phy_source.symbol[0].eq(Ctrl.SDP)
+                    m.d.comb += self.started_sending.eq(1)
+
+                    for i in range(self.ratio - 1):
+                        m.d.rx += self.phy_source.symbol[i + 1].eq(dllp_bytes[8 * i : 8 * i + 8])
+
+                with m.Else():
+                    m.d.rx += which_half.eq(0)
+                    m.d.comb += self.started_sending.eq(0)
+                    for i in range(self.ratio - 1):
+                        m.d.rx += self.phy_source.symbol[i].eq(dllp_bytes[8 * i + (self.ratio - 1) * 8 : 8 * i + 8 + (self.ratio - 1) * 8])
+
+                    m.d.rx += self.phy_source.symbol[3].eq(Ctrl.END)
 
             with m.Else():
                 m.d.rx += which_half.eq(0)
                 m.d.comb += self.started_sending.eq(0)
-                for i in range(self.ratio - 1):
-                    m.d.comb += self.phy_source.symbol[i].eq(dllp_bytes[8 * i + (self.ratio - 1) * 8 : 8 * i + 8 + (self.ratio - 1) * 8])
-
-                m.d.comb += self.phy_source.symbol[3].eq(Ctrl.END)
-
-        with m.Else():
-            m.d.rx += which_half.eq(0)
-            m.d.comb += self.started_sending.eq(0)
-            for i in range(4):
-                m.d.comb += self.phy_source.valid[i].eq(0)
+                for i in range(4):
+                    m.d.rx += self.phy_source.valid[i].eq(0)
 
         return m
 
