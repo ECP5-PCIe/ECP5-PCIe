@@ -22,7 +22,7 @@ class PCIeVirtualTLPGenerator(Elaboratable):
         m.d.rx += timer.eq(timer + 1)
 
         with m.If(self.tlp_source.ready):
-            with m.If(timer < 256):
+            with m.If(timer < 256): # TODO: If this value is 64 it goes to Recovery
                 for i in range(ratio):
                     m.d.rx += self.tlp_source.symbol[i].eq(timer * ratio + i)
                     m.d.rx += self.tlp_source.valid[i].eq(1)

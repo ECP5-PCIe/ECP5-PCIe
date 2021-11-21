@@ -27,7 +27,9 @@ class Ctrl(IntEnum):
     EIE = K(28, 7) # Electrical Idle Exit
     END = K(29, 7)
     EDB = K(30, 7) # End Bad
-    Error = K(14, 7) # End Bad
+    Error = K(14, 7)
+
+ctrl_set = set(map(int, Ctrl))
 
 class LinkSpeed(IntEnum):
     S2_5 = 1, # Speed of 2.5 GT/s, multiply timers by 2 by left shifting them by one bit

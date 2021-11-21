@@ -34,6 +34,7 @@ class PCIePhyTX(Elaboratable):
         self.ready = Signal()
         self.sink = StreamInterface(9, lane.ratio, name="PHY_Sink")
         self.enable_higher_layers = Signal()
+        self.ltssm_L0 = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -89,19 +90,20 @@ class PCIePhyTX(Elaboratable):
                 m.d.rx += sending_old.eq(sending_data)
                 m.d.rx += self.enable_higher_layers.eq(1)
 
-                m.d.comb += self.sink.ready.eq(1)
+                m.d.comb += self.sink.ready.eq(self.ltssm_L0)
 
 
                 last_symbols = [Signal(9) for _ in range(ratio)]
 
-                for i in range(ratio):
-                    m.d.rx += last_symbols[i].eq(self.sink.symbol[i])
+                with m.If(self.sink.all_valid):
+                    for i in range(ratio):
+                        m.d.rx += last_symbols[i].eq(self.sink.symbol[i])
 
                 # Send SKP ordered sets when the accumulator is above 0
                 #with m.If(skp_accumulator > 0):
                 #    m.d.comb += self.sink.ready.eq(0)
 
-                with m.If((skp_accumulator > 0) & (~sending_data | ((last_symbols[3] == Ctrl.END) | (last_symbols[3] == Ctrl.EDB)))):
+                with m.If((skp_accumulator > 0) & ~sending_old & ~sending_data):#(~sending_data | ((last_symbols[3] == Ctrl.END) | (last_symbols[3] == Ctrl.EDB)))):
                     m.d.comb += self.sink.ready.eq(0)
                     send(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP)
                     m.d.rx += [

@@ -1,4 +1,5 @@
 from nmigen import *
+from .serdes import ctrl_set, Ctrl
 
 class StreamInterface(): # From Yumewatari
     """
@@ -18,18 +19,18 @@ class StreamInterface(): # From Yumewatari
     ready : Signal()
         Asserted when the receiver is ready´
     """
-    def __init__(self, symbol_size, word_size, name=""):
-        self.symbol = [Signal(symbol_size, name=f"{name}_{i + 1}") for i in range(word_size)]
-        self.valid  = [Signal(name=f"{name}_{i + 1}V")            for i in range(word_size)]
+    def __init__(self, symbol_size, word_size, name="", decode_9b_symbols=True):
+        def stream_decoder(value : int):
+            if value in ctrl_set:
+                return Ctrl(value).name
+            else:
+                return hex(value)[2:]
 
-        #def stream_decoder(value : int):
-        #    result = ""
-        #    for i in range(word_size):
-        #        val = (value >> (symbol_size * i)) & (2 ** symbol_size - 1)
-        #        valid = (value >> (symbol_size * word_size + i)) & 1
-        #        result += hex(val)[2:] + f'{"V" if valid else "E"} '
-        #    
-        #    return result
+        if symbol_size == 9 and decode_9b_symbols:
+            self.symbol = [Signal(symbol_size, name=f"{name}_{i + 1}", decoder=stream_decoder) for i in range(word_size)]
+        else:
+            self.symbol = [Signal(symbol_size, name=f"{name}_{i + 1}") for i in range(word_size)]
+        self.valid  = [Signal(name=f"{name}_{i + 1}V")             for i in range(word_size)]
         
         #self.debug  = Signal((symbol_size + 1) * word_size, name=name), decoder=stream_decoder)
 

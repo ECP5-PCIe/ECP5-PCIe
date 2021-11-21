@@ -109,6 +109,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         # Is set when transitioning to Detect.Active and reset in Detect.Quiet
         ready_reset = Signal()
 
+        m.d.rx += self.tx.ltssm_L0.eq(0)
+
         
         def reset_ts_count_and_jump(next_state):
             """
@@ -633,6 +635,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
 
             with m.State(State.L0): # Page 297, implementation for 5 GT/s and higher lane counts missing
+                m.d.rx += self.tx.ltssm_L0.eq(1)
                 m.d.rx += debug_state.eq(State.L0)
                 # TBD
                 m.d.rx += status.link.up.eq(1)
