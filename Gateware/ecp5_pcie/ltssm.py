@@ -504,6 +504,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
                         m.d.rx += tx_idl_count.eq(0)
+
                     with m.Else():
                         m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
@@ -511,6 +512,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                             m.d.rx += rx_idl_count.eq(0)
                             m.d.rx += tx_idl_count.eq(0)
                             reset_ts_count_and_jump(State.L0)
+
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
 
@@ -547,6 +549,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     (rx.ts.link.number == tx.ts.link.number) &
                     (rx.ts.lane.number == tx.ts.lane.number)):
                     m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
+
                 with m.If(rx_ts_count == 8):
                     reset_ts_count_and_jump(State.Recovery_RcvrCfg)
 
@@ -574,6 +577,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += rx_recvd.eq(rx_recvd | rx.ts_received)
                 with m.If(tx.start_send_ts):
                     m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
+
                 with m.If(last_ts != rx.ts.ts_id):
                     m.d.rx += rx_ts_count.eq(0)
                 
@@ -582,8 +586,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     (rx.ts.link.number == tx.ts.link.number) &
                     (rx.ts.lane.number == tx.ts.lane.number)):
                     m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
+
                 with m.Else():
                     m.d.rx += rx_ts_count.eq(0)
+
                 with m.If((rx_ts_count == 8) & (last_ts == 1)):
                     m.d.rx += last_ts.eq(0)
                     reset_ts_count_and_jump(State.Recovery_Idle)
@@ -604,6 +610,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(~rx.ts.lane.valid):
                     with m.If(~pad_cnt):
                         m.d.rx += pad_cnt.eq(1)
+
                     with m.Else():
                         reset_ts_count_and_jump(State.Configuration)
                 
@@ -612,6 +619,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     with m.If(rx_idl_count < 4):
                         m.d.rx += rx_idl_count.eq(rx_idl_count + 1)
                         m.d.rx += tx_idl_count.eq(0)
+
                     with m.Else():
                         m.d.rx += tx_idl_count.eq(tx_idl_count + 1)
                         with m.If(tx_idl_count >= 8):
@@ -620,6 +628,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                             m.d.rx += rx_idl_count.eq(0)
                             m.d.rx += tx_idl_count.eq(0)
                             reset_ts_count_and_jump(State.L0)
+
                 with m.Else():
                     m.d.rx += rx_idl_count.eq(0)
                 
@@ -630,6 +639,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     m.d.rx += tx.idle.eq(0)
                     with m.If(status.idle_to_rlock_transitioned < 0xFF):
                         reset_ts_count_and_jump(State.Recovery_RcvrLock)
+                        
                     with m.Else():
                         reset_ts_count_and_jump(State.Detect)
 

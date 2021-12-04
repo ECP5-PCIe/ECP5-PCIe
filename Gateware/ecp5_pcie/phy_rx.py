@@ -1,7 +1,7 @@
 from nmigen import *
 from nmigen.build import *
 from nmigen.lib.fifo import SyncFIFOBuffered
-from .serdes import K, D, Ctrl, PCIeSERDESInterface, PCIeScrambler
+from .serdes import K, D, compose, Ctrl, PCIeSERDESInterface, PCIeScrambler
 from .layouts import ts_layout
 from .stream import StreamInterface
 
@@ -38,10 +38,10 @@ class PCIePhyRX(Elaboratable):
         self.ready = Signal()
         self.source = StreamInterface(9, raw_lane.ratio, name="PHY_Source")
     
-    """
-    Whether the symbol is in the current RX data
-    """
     def has_symbol(self, symbol):
+        """
+        Whether the symbol is in the current RX data
+        """
         has = False
         for i in range(self.decoded_lane.ratio):
             has |= self.decoded_lane.rx_symbol[i * 9 : i * 9 + 9] == symbol
@@ -59,7 +59,8 @@ class PCIePhyRX(Elaboratable):
         ts_current = Record(ts_layout)
         ratio = raw_lane.ratio
 
-        self.idle = decoded_lane.rx_symbol == 0
+        # Idle signal for when the idle symbol or SKP ordered sets are received
+        self.idle = (decoded_lane.rx_symbol == 0) | (decoded_lane.rx_symbol == compose([Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP]))
 
         # The received symbols
         symbols = [raw_lane.rx_symbol[i * 9 : i * 9 + 9] for i in range(ratio)]

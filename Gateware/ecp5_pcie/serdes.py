@@ -13,25 +13,59 @@ from .lfsr import PCIeLFSR
 __all__ = ["PCIeSERDESInterface", "PCIeSERDESAligner", "PCIeScrambler"]
 
 
-def K(x, y): return (1 << 8) | (y << 5) | x
-def D(x, y): return (0 << 8) | (y << 5) | x
+def K(x, y):
+    """
+    Returns 9 bit value of K symbols, for example K28.5 can be written as K(28, 5)
+    """
+    return (1 << 8) | (y << 5) | x
+
+def D(x, y):
+    """
+    Returns 9 bit value of D symbols, for example D31.7 can be written as K(31, 7)
+    """
+    return (0 << 8) | (y << 5) | x
+
+def compose(symbols: list[int], symbol_size : int = 9):
+    """
+    This function takes a list of symbols and turns it into an int such that comparison of larger signals is easier.
+    """
+    base = 0
+    result = 0
+
+    for symbol in symbols:
+        result |= symbol << base
+        base += symbol_size
+    
+    return result
+
 
 class Ctrl(IntEnum):
-    PAD = K(23, 7)
+    """
+    Control symbols used in PCIe, Page 194 Table 4-1 in PCIe 3.0
+    """
+    PAD = K(23, 7) # Used for LTSSM initialization
     STP = K(27, 7) # Start Transaction Layer Packet
     SKP = K(28, 0) # Skip
     FTS = K(28, 1) # Fast Training Sequence
     SDP = K(28, 2) # Start Data Link Layer Packet
     IDL = K(28, 3) # Idle
+    RD1 = K(28, 4) # Reserved 1
     COM = K(28, 5) # Comma
+    RD2 = K(28, 6) # Reserved 2
     EIE = K(28, 7) # Electrical Idle Exit
-    END = K(29, 7)
+    END = K(29, 7) # End
     EDB = K(30, 7) # End Bad
-    Error = K(14, 7)
+    Error = K(14, 7) # SERDES Error
 
 ctrl_set = set(map(int, Ctrl))
+"""
+Set of Ctrl values as ints, for example to check if a value is a Ctrl value
+"""
 
 class LinkSpeed(IntEnum):
+    """
+    List of link speeds
+    """
     S2_5 = 1, # Speed of 2.5 GT/s, multiply timers by 2 by left shifting them by one bit
     S5_0 = 0, # Speed of 5 GT/s
     
@@ -273,17 +307,22 @@ class PCIeScrambler(PCIeSERDESInterface):
             m.submodules += lfsr 
             with m.If(enable & (input[8] == 0)):
                 m.d.rx += output[0:9].eq(lfsr.output[0:9] ^ input[0:9])
+
             with m.Else():
                 m.d.rx += output[0:9].eq(input[0:9])
+                
                 
             with m.If(enable & (input[17] == 0)):
                 with m.If(input[0:9] == Ctrl.COM): # TODO: This is a hack. Please fix.
                     m.d.rx += output[9:18].eq(0xFF ^ input[9:18])
+
                 with m.Else():
                     m.d.rx += output[9:18].eq(lfsr.output[9:18] ^ input[9:18])
+
                 if (self.ratio > 2):
                     for i in range(2, self.ratio):
                         m.d.rx += output[9 * i : 9 * i + 9].eq(Mux(input[9 * i : 9 * i + 9][8], 0, lfsr.output[9 * i : 9 * i + 9]) ^ input[9 * i : 9 * i + 9])
+
             with m.Else():
                 for i in range(1, self.ratio):
                     m.d.rx += output[9 * i : 9 * i + 9].eq(input[9 * i : 9 * i + 9])
