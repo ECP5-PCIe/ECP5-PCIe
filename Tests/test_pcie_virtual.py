@@ -22,6 +22,8 @@ class VirtualPCIeTestbench(Elaboratable):
         self.refclkcounter = Signal(32)
         self.phy_u.ltssm.clocks_per_ms = 128
         self.phy_d.ltssm.clocks_per_ms = 128
+        self.phy_u.dll_tlp_tx.clocks_per_ms = 128
+        self.phy_d.dll_tlp_tx.clocks_per_ms = 128
         self.phy_u.ltssm.simulate = True
         self.phy_d.ltssm.simulate = True
 

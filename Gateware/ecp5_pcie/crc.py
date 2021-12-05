@@ -115,9 +115,8 @@ class CRC(Elaboratable):
         return m
 
 class LCRC(Elaboratable):
-
     """
-    LCRC generator for a variable number of data bits
+    LCRC generator for a variable number of data bits, currently 16 and 32 while 32 is best supported
 
     Parameters
     ----------
@@ -230,7 +229,7 @@ class LCRC(Elaboratable):
             with m.Else():
                 m.d.sync += self.intermediate.eq(last)
         
-        for i in [0, 8, 16, 24]:
+        for i in [0, 8, 16, 24] if len(self.input) == 32 else [0, 8]:
             m.d.comb += self.output[i : i + 8].eq(~self.intermediate[i : i + 8][::-1]) # Maybe the endianness is not entirely correct, not sure
 
         return m
