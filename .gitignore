@@ -1,5 +1,5 @@
 # LibreOffice files
-.~lock*
+#.~lock*
 
 # amaranth simulations
 *.gtkw
