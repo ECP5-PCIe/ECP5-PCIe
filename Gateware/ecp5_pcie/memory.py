@@ -96,8 +96,8 @@ class TLPBuffer(Elaboratable):
                     m.next = "Set offset"
 
             with m.State("Set offset"):
-                offset = 0 # Signal(range(self.max_tlps))
-                valid_id = 0 # Signal()
+                offset = 0
+                valid_id = 0
 
                 for i in range(self.max_tlps):
                     offset = Mux(self.slots[i][0] & (self.slots[i][1] == self.send_tlp_id), i, offset)

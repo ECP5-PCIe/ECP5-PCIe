@@ -21,11 +21,11 @@ class PCIePhy(Elaboratable):
         self.dllp_rx = PCIeDLLPReceiver(self.rx.source)
         self.dllp_tx = PCIeDLLPTransmitter()
 
-        self.dll_tlp_tx = PCIeDLLTLPTransmitter()
+        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency)
+
+        self.dll_tlp_tx = PCIeDLLTLPTransmitter(self.dll)
 
         self.virt_tlp_gen = PCIeVirtualTLPGenerator()
-
-        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()

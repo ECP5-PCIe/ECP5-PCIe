@@ -19,9 +19,9 @@ class PCIeVirtualTLPGenerator(Elaboratable):
         ratio = self.ratio
 
         timer = Signal(9)
-        m.d.rx += timer.eq(timer + 1)
 
         with m.If(self.tlp_source.ready):
+            m.d.rx += timer.eq(timer + 1)
             with m.If(timer < 256): # TODO: If this value is 64 it goes to Recovery
                 for i in range(ratio):
                     m.d.rx += self.tlp_source.symbol[i].eq(timer * ratio + i)
