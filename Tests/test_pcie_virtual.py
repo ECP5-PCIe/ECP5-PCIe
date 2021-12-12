@@ -104,6 +104,8 @@ if __name__ == "__main__":
     m = Module()
     m.submodules.pcie = pcie = VirtualPCIeTestbench()
 
+    dll_status = pcie.phy_d.dll.status
+
     sim = Simulator(m)
 
     #sim.add_clock(8e-9, domain="tx")
@@ -113,9 +115,47 @@ if __name__ == "__main__":
     def process():
         a = 1
         last_state = 0
+        last_retry_buffer_occupation = 0
+        last_receive_buffer_occupation = 0
+        last_tx_seq_num = 0
+        last_rx_seq_num = 0
+        ack_scheduled_last = 0
         for i in range(100 * 1000 * 24):
             state = State((yield pcie.phy_d.ltssm.debug_state)).name
+
+            retry_buffer_occupation = yield dll_status.retry_buffer_occupation
+            receive_buffer_occupation = yield dll_status.receive_buffer_occupation
+            tx_seq_num = yield dll_status.tx_seq_num
+            rx_seq_num = yield dll_status.rx_seq_num
+
+            ack_scheduled = yield pcie.phy_d.dll.schedule_ack_nak
+            ack_scheduled_ack = yield pcie.phy_d.dll.scheduled_ack
+            ack_scheduled_id = yield pcie.phy_d.dll.scheduled_ack_nak_id
+
+            ack_received = yield pcie.phy_u.dll.received_ack_nak
+            ack_received_ack = yield pcie.phy_u.dll.received_ack
+            ack_received_id = yield pcie.phy_u.dll.received_ack_nak_id
+            
             print(i, end="\r")
+
+            if last_retry_buffer_occupation != retry_buffer_occupation:
+                print(i, "retry_buffer_occupation:", retry_buffer_occupation)
+            
+            if last_receive_buffer_occupation != receive_buffer_occupation:
+                print(i, "receive_buffer_occupation:", receive_buffer_occupation)
+            
+            if last_tx_seq_num != tx_seq_num:
+                print(i, "tx_seq_num:", tx_seq_num)
+            
+            if last_rx_seq_num != rx_seq_num:
+                print(i, "rx_seq_num:", rx_seq_num)
+            
+            if ack_scheduled_last:
+                print(i, "Ack" if ack_scheduled_ack else "Nak", "scheduled id:", ack_scheduled_id)
+            
+            #if ack_received:
+            #    print(i, "Ack" if ack_received_ack else "Nak", "received id:", ack_received_id)
+            
             if(state != last_state):
                 print(state, end="                 \n")
             #if i == a:
@@ -123,6 +163,11 @@ if __name__ == "__main__":
             #    a *= 2
             yield
             last_state = state
+            last_retry_buffer_occupation = retry_buffer_occupation
+            last_receive_buffer_occupation = receive_buffer_occupation
+            last_tx_seq_num = tx_seq_num
+            last_rx_seq_num = rx_seq_num
+            ack_scheduled_last = ack_scheduled
 
     sim.add_sync_process(process, domain="sync")
 

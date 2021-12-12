@@ -4,7 +4,7 @@ from enum import IntEnum
 
 from .ltssm import PCIeLTSSM
 from .serdes import K, D, Ctrl
-from .layouts import dll_layout
+from .layouts import dll_layout, dll_status
 from .dllp import PCIeDLLPTransmitter, PCIeDLLPReceiver, DLLPType
 
 class State(IntEnum):
@@ -49,6 +49,22 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         self.clk_freq = clk_freq
         self.speed = Signal()
 
+        self.status = Record(dll_status)
+
+        self.schedule_ack_nak = Signal()
+        """Schedule Ack or Nak, configured with ack and ack_nak_id"""
+        self.scheduled_ack = Signal()
+        """Type of Ack or Nak is Ack"""
+        self.scheduled_ack_nak_id = Signal(12)
+        """ID of Ack or Nak DLLP to be sent"""
+
+        self.received_ack_nak = Signal()
+        """Whether an Ack or Nak was received"""
+        self.received_ack = Signal()
+        """Type of Ack or Nak is Ack"""
+        self.received_ack_nak_id = Signal(12)
+        """ID of Ack or Nak DLLP which was received"""
+
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
@@ -74,20 +90,35 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         # For later use
         sending_tlp = Signal() # TODO: Connect this wire for proper operation
 
+        m.d.rx += self.received_ack_nak.eq(0)
+
         # Get update DLLPs
         with m.If(~self.ltssm.status.link.up):
             pass
+
         with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_P)):
             m.d.rx += self.credits_rx.PH.eq(self.rx.dllp.header)
             m.d.rx += self.credits_rx.PD.eq(self.rx.dllp.data)
             m.d.rx += got_p.eq(1)
+
         with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_NP)):
             m.d.rx += self.credits_rx.NPH.eq(self.rx.dllp.header)
             m.d.rx += self.credits_rx.NPD.eq(self.rx.dllp.data)
             m.d.rx += got_np.eq(1)
+            
         with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.UpdateFC_Cpl)):
             m.d.rx += self.credits_rx.CPLH.eq(self.rx.dllp.header)
             m.d.rx += self.credits_rx.CPLD.eq(self.rx.dllp.data)
+
+        with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.Ack)):
+            m.d.rx += self.received_ack_nak.eq(1)
+            m.d.rx += self.received_ack.eq(1)
+            m.d.rx += self.received_ack_nak_id.eq(self.rx.dllp.data)
+
+        with m.Elif(self.rx.dllp.valid & (self.rx.dllp.type == DLLPType.Nak)):
+            m.d.rx += self.received_ack_nak.eq(1)
+            m.d.rx += self.received_ack.eq(0)
+            m.d.rx += self.received_ack_nak_id.eq(self.rx.dllp.data)
 
         # Data Link Layer State Machine, Page 129 in PCIe 1.1
         with m.FSM(domain="rx"):
@@ -99,7 +130,9 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                     got_cpl.eq(0),
                     done_dllp_transmission.eq(0),
                     transmit_dllps.eq(0),
+                    self.received_ack_nak.eq(0),
                 ]
+
                 with m.If(self.ltssm.status.link.up): # TODO: link on transaction layer must not be disabled
                     m.next = State.DL_Init_FC1
 
@@ -160,11 +193,19 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         
         # DLLP sending FSM
         # TODO: It transmits the first packet twice. This doesn't break it but it unnecessarily takes up bandwidth.
+        send_ack_nak = Signal()
+        with m.If(self.schedule_ack_nak):
+            m.d.rx += send_ack_nak.eq(1)
+
         with m.FSM(domain="rx"):
             with m.State("Idle"):
                 m.d.rx += self.tx.send.eq(0)
+
                 with m.If(transmit_dllps):
                     m.next = "P"
+
+                with m.Elif(send_ack_nak):
+                    m.next = "Ack_Nak"
 
             # Const(n, 2) means n = 0: P, n = 1: NP, n = 2: CPL
             with m.State("P"):
@@ -196,6 +237,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                     self.tx.dllp.valid.eq(1),
                     self.tx.send.eq(1),
                 ]
+
                 with m.If(self.tx.started_sending):
                     m.d.rx += self.tx.send.eq(0)
                     m.next = "CPL"
@@ -212,6 +254,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                     self.tx.dllp.valid.eq(1),
                     self.tx.send.eq(1),
                 ]
+
                 with m.If(self.tx.started_sending):
                     m.d.rx += self.tx.send.eq(0)
                     # This is kind of a hack to ensure that it doesn't toggle to 1 when it isn't supposed to transmit (but still finishing a transmission)
@@ -220,5 +263,18 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                         m.next = "P"
                     with m.Else():
                         m.next = "Idle"
+            
+            with m.State("Ack_Nak"):
+                m.d.rx += [
+                    self.tx.dllp.type.eq(Mux(self.scheduled_ack, DLLPType.Ack, DLLPType.Nak)),
+                    self.tx.dllp.header.eq(0),
+                    self.tx.dllp.data.eq(self.scheduled_ack_nak_id),
+                    self.tx.dllp.valid.eq(1),
+                    self.tx.send.eq(1),
+                    send_ack_nak.eq(0),
+                ]
+
+                with m.If(self.tx.started_sending):
+                    m.next = "Idle"
 
         return m

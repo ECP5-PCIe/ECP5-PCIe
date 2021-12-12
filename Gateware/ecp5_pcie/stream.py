@@ -30,7 +30,8 @@ class StreamInterface(): # From Yumewatari
             self.symbol = [Signal(symbol_size, name=f"{name}_{i + 1}", decoder=stream_decoder) for i in range(word_size)]
         else:
             self.symbol = [Signal(symbol_size, name=f"{name}_{i + 1}") for i in range(word_size)]
-        self.valid  = [Signal(name=f"{name}_{i + 1}V")             for i in range(word_size)]
+
+        self.valid = [Signal(name=f"{name}_{i + 1}V")             for i in range(word_size)]
         
         #self.debug  = Signal((symbol_size + 1) * word_size, name=name), decoder=stream_decoder)
 
@@ -39,7 +40,7 @@ class StreamInterface(): # From Yumewatari
             sigs |= self.valid[i]
 
         self.all_valid = sigs
-        self.ready  =  Signal(name=f"{name}_ready")
+        self.ready = Signal(name=f"{name}_ready")
     
     """
     Connects a source to a sink.

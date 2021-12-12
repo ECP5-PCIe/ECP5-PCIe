@@ -79,6 +79,7 @@ class PCIeDLLPTransmitter(Elaboratable):
                     m.d.rx += self.phy_source.valid[i].eq(self.dllp_sink.valid[i]) # TODO: Fix this
 
             with m.Elif(dllp.valid & (self.send | which_half)):
+                #m.d.comb += self.dllp_sink.ready.eq(0)
                 for i in range(4):
                     m.d.rx += self.phy_source.valid[i].eq(1)
 
@@ -110,11 +111,13 @@ class PCIeDLLPReceiver(Elaboratable):
     """
     PCIe Data Link Layer Packet receiver
     """
-    def __init__(self, phy_sink : StreamInterface):
+    def __init__(self, ratio = 4):
+        assert ratio == 4
+
         self.dllp = Record(dllp_layout)
-        self.phy_sink = phy_sink
-        assert len(self.phy_sink.symbol) == 4
-        self.ratio = len(self.phy_sink.symbol)
+        self.phy_sink = StreamInterface(9, ratio, name="PHY_Sink")
+        self.dllp_source = StreamInterface(9, ratio, name="DLLP_Source")
+        self.ratio = ratio
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -122,6 +125,8 @@ class PCIeDLLPReceiver(Elaboratable):
         dllp = self.dllp
 
         dllp_bytes = Signal(6 * 8)
+
+        received = Signal()
 
         valid = Signal()
 
@@ -135,14 +140,21 @@ class PCIeDLLPReceiver(Elaboratable):
         with m.Elif(self.phy_sink.symbol[3] == Ctrl.END):
             for i in range(self.ratio - 1):
                 m.d.rx += Cat(dllp_bytes[8 * i + (self.ratio - 1) * 8: 8 * i + 8 + (self.ratio - 1) * 8]).eq(self.phy_sink.symbol[i])
+            m.d.rx += received.eq(1)
         
         m.d.rx += valid.eq(~Cat(crc.output[::-1]) == dllp_bytes[8 * 4:])
 
-        with m.If(valid):
+        with m.If(valid & received):
             m.d.rx += dllp.valid.eq(1)
             m.d.rx += dllp.type.eq(dllp_bytes[4:8])
             m.d.rx += dllp.type_meta.eq(dllp_bytes[0:3])
-            m.d.rx += dllp.header.eq(Cat(dllp_bytes[8:14], dllp_bytes[22:24]))
-            m.d.rx += dllp.data.eq(Cat(dllp_bytes[16:21], dllp_bytes[24:32]))
+            m.d.rx += dllp.header.eq(Cat(dllp_bytes[22:24], dllp_bytes[8:14]))
+            m.d.rx += dllp.data.eq(Cat(dllp_bytes[24:32], dllp_bytes[16:20]))
+            m.d.rx += received.eq(0)
+        
+
+        for i in range(4):
+            m.d.rx += self.dllp_source.symbol[i].eq(self.phy_sink.symbol[i])
+            m.d.rx += self.dllp_source.valid[i].eq(1) # Maybe toggle this with STP / END, EDB
 
         return m

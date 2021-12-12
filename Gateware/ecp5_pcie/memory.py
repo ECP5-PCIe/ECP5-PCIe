@@ -18,8 +18,11 @@ class TLPBuffer(Elaboratable):
 
     tlp_bytes : int
         Maximum number of bytes in a TLP
+
+    delete_on_send : bool
+        Whether to delete the TLP once it is sent
     """
-    def __init__(self, ratio: int = 4, max_tlps: int = 4, tlp_bytes: int = 512):
+    def __init__(self, ratio: int = 4, max_tlps: int = 4, tlp_bytes: int = 512, delete_on_send: bool = False):
         self.ratio = ratio
 
         self.tlp_sink = StreamInterface(8, ratio, name="TLP_Sink")
@@ -60,6 +63,16 @@ class TLPBuffer(Elaboratable):
         """Whether all TLP slots are full, check for free space with ~slots_full"""
         self.slots_empty = Signal(reset = 0)
         """Whether no TLPs are stored"""
+        self.slots_occupied = Signal(range(max_tlps + 1))
+        """How many TLPs are stored"""
+
+        self.delete_on_send = delete_on_send
+        """Whether TLPs are deleted after they have been sent"""
+
+        self.in_buffer = Signal()
+        """Whether TLP in_buffer_id is in the buffer, comb domain"""
+        self.in_buffer_id = Signal(12)
+        """ID for in_buffer"""
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -91,6 +104,17 @@ class TLPBuffer(Elaboratable):
         m.d.rx += tlp_source_valid[0].eq(0)
         m.d.rx += [self.tlp_source.valid[i].eq(tlp_source_valid[-1]) for i in range(self.ratio)]
         m.d.rx += read_port.en.eq(1)
+
+
+        valid_id_check = 0
+
+        for i in range(self.max_tlps):
+            valid_id_check = valid_id_check | self.slots[i][0] & (self.slots[i][1] == self.in_buffer_id)
+        
+        m.d.comb += self.in_buffer.eq(valid_id_check)
+
+        with m.If(self.slots_empty):
+            m.d.rx += self.slots_occupied.eq(0)
 
         with m.FSM(name = "send_fsm", domain = "rx"):
             with m.State("Idle"):
@@ -128,7 +152,12 @@ class TLPBuffer(Elaboratable):
                     m.d.rx += read_address_counter.eq(0)
                     m.d.rx += tlp_source_valid[0].eq(~read_port.data[-1])
                     m.d.rx += tlp_source_valid[1].eq(~read_port.data[-1])
+
                     m.next = "Idle"
+
+                    if self.delete_on_send:
+                        m.d.comb += self.delete_tlp.eq(1)
+                        m.d.comb += self.delete_tlp_id.eq(self.send_tlp_id)
         
 
         # Dereference pointer
@@ -136,6 +165,7 @@ class TLPBuffer(Elaboratable):
             for i in range(self.max_tlps):
                 with m.If(self.slots[i][0] & (self.delete_tlp_id == self.slots[i][1])):
                     m.d.rx += self.slots[i][0].eq(0)
+                    m.d.rx += self.slots_occupied.eq(self.slots_occupied - 1)
 
 
         end_tlp = Signal()
@@ -200,6 +230,8 @@ class TLPBuffer(Elaboratable):
                     m.d.rx += self.tlp_sink.ready.eq(0)
                     m.d.rx += write_address_counter.eq(0)
                     m.d.rx += write_port.en.eq(0)
+                    m.d.rx += self.slots_occupied.eq(self.slots_occupied + 1)
+
                     m.next = "Idle"
 
 

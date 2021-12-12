@@ -170,6 +170,7 @@ class LCRC(Elaboratable):
                     last = current
 
                 # Setting the output to the initial value resets it
+                # TODO: Redundant
                 with m.If(self.reset):
                     m.d.sync += self.intermediate.eq(self.init)
                 with m.Else():

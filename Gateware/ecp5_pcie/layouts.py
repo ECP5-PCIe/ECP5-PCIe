@@ -59,3 +59,10 @@ dll_layout = [
     ("CPLH", 8),
     ("CPLD", 12),
 ]
+
+dll_status = [
+    ("retry_buffer_occupation", 8),
+    ("receive_buffer_occupation", 8),
+    ("tx_seq_num", 12),
+    ("rx_seq_num", 12),
+]
