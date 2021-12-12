@@ -46,11 +46,8 @@ class PCIeDLLTLPTransmitter(Elaboratable):
         assert ratio == 4
 
         # Maybe these should be moved into PCIeDLLTLP class since it also involves RX a bit
-        buffer = TLPBuffer(ratio = ratio, max_tlps = 2 ** len(self.replay_num))
-        unacknowledged_tlp_fifo = SyncFIFOBuffered(width = 12, depth = 4)
-
-        m.submodules += buffer
-        m.submodules += unacknowledged_tlp_fifo
+        m.submodules.buffer = buffer = TLPBuffer(ratio = ratio, max_tlps = 2 ** len(self.replay_num))
+        m.submodules.unacknowledged_tlp_fifo = unacknowledged_tlp_fifo = SyncFIFOBuffered(width = 12, depth = 4)
 
         source_from_buffer = Signal()
         sink_ready = Signal()
@@ -60,12 +57,14 @@ class PCIeDLLTLPTransmitter(Elaboratable):
         sink_symbol = [Mux(source_from_buffer, buffer.tlp_source.symbol[i], self.tlp_sink.symbol[i]) for i in range(ratio)]
 
         self.tlp_sink.connect(buffer.tlp_sink, m.d.comb)
-        m.d.rx += buffer.store_tlp.eq(1) # TODO: Is this a good idea?
-        m.d.rx += buffer.store_tlp_id.eq(self.next_transmit_seq)
-        m.d.rx += buffer.send_tlp_id.eq(unacknowledged_tlp_fifo.r_data)
-        m.d.rx += unacknowledged_tlp_fifo.r_en.eq(0)
 
-        with m.If(~self.dll.up):
+        with m.If(self.dll.up):
+            m.d.comb += buffer.store_tlp.eq(1) # TODO: Is this a good idea?
+            m.d.rx += buffer.store_tlp_id.eq(self.next_transmit_seq)
+            m.d.rx += buffer.send_tlp_id.eq(unacknowledged_tlp_fifo.r_data)
+            m.d.rx += unacknowledged_tlp_fifo.r_en.eq(0)
+        
+        with m.Else():
             m.d.rx += self.next_transmit_seq.eq(self.next_transmit_seq.reset)
             m.d.rx += self.ackd_seq.eq(self.ackd_seq.reset)
             m.d.rx += self.replay_num.eq(self.replay_num.reset)
@@ -122,8 +121,8 @@ class PCIeDLLTLPTransmitter(Elaboratable):
             with m.If(self.nullify):
                 m.d.comb += Cat(tlp_bytes[0 : 8 * ratio]).eq(~lcrc.output) # ~~x = x
                 m.d.rx += Cat(tlp_bytes_before[0 : 8 * ratio]).eq(~lcrc.output)
-                m.d.rx += buffer.delete_tlp.eq(1)
-                m.d.rx += buffer.delete_tlp_id.eq(self.next_transmit_seq)
+                m.d.comb += buffer.delete_tlp.eq(1)
+                m.d.comb += buffer.delete_tlp_id.eq(self.next_transmit_seq)
 
             with m.Else():
                 m.d.comb += Cat(tlp_bytes[0 : 8 * ratio]).eq(lcrc.output) # TODO: Endianness correct?
@@ -145,71 +144,146 @@ class PCIeDLLTLPTransmitter(Elaboratable):
         for i in range(4):
             m.d.rx += self.dllp_source.valid[i].eq(0)
 
-        # TODO: This could be a FSM
+
         with m.If(self.dllp_source.ready & unacknowledged_tlp_fifo.w_rdy):
             m.d.comb += sink_ready.eq(1) # TODO: maybe move to rx?
+            with m.FSM(name = "TLP_transmit_FSM", domain = "rx"):
+                with m.State("Idle"):
+                    with m.If(~last_valid & sink_valid):
+                        m.d.comb += reset_crc.eq(0)
+                        m.d.comb += crc_input.eq(Cat(self.next_transmit_seq[8 : 12], Const(0, shape = 4), self.next_transmit_seq[0 : 8]))
+                        m.d.rx += even_more_delay[0].eq(Ctrl.STP)
+                        m.d.rx += even_more_delay[1].eq(self.next_transmit_seq[8 : 12])
+                        m.d.rx += even_more_delay[2].eq(self.next_transmit_seq[0 : 8])
+                        m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+                        m.next = "Transmit"
 
-            with m.If(~last_valid & sink_valid):
-                m.d.comb += reset_crc.eq(0)
-                m.d.comb += crc_input.eq(Cat(self.next_transmit_seq[8 : 12], Const(0, shape = 4), self.next_transmit_seq[0 : 8]))
-                m.d.rx += even_more_delay[0].eq(Ctrl.STP)
-                m.d.rx += even_more_delay[1].eq(self.next_transmit_seq[8 : 12])
-                m.d.rx += even_more_delay[2].eq(self.next_transmit_seq[0 : 8])
-                m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
-                #for i in range(4):
-                #    m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+                with m.State("Transmit"):
+                    with m.If(last_valid & sink_valid):
+                        m.d.comb += reset_crc.eq(0)
+                        m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+                        m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+                        m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
+                        m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+                        for i in range(4):
+                            m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+                        for i in range(4):
+                            m.d.rx += self.dllp_source.valid[i].eq(1)
 
-            with m.Elif(last_valid & sink_valid):
-                m.d.comb += reset_crc.eq(0)
-                m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
-                m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
-                m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
-                m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
-                for i in range(4):
-                    m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
-                for i in range(4):
-                    m.d.rx += self.dllp_source.valid[i].eq(1)
+                    with m.Elif(~sink_valid):
+                        m.d.comb += reset_crc.eq(0)
+                        m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
+                        m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+                        m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+                        m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
+                        for i in range(4):
+                            m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+                        for i in range(4):
+                            m.d.rx += self.dllp_source.valid[i].eq(1)
+                        m.next = "Post-1"
 
-            with m.Elif(last_valid & ~sink_valid): # Maybe this can be done better and replaced by the two if blocks above
-                m.d.comb += reset_crc.eq(0)
-                m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
-                m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
-                m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
-                m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
-                for i in range(4):
-                    m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
-                for i in range(4):
-                    m.d.rx += self.dllp_source.valid[i].eq(1)
+                with m.State("Post-1"):
+                    m.d.rx += self.dllp_source.symbol[3].eq(tlp_bytes[8 * 0 : 8 * 1])
 
-            with m.Elif(last_last_valid & ~sink_valid):
-                m.d.rx += self.dllp_source.symbol[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+                    for i in range(3):
+                        m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
 
-                for i in range(3):
-                    m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+                    for i in range(4):
+                        m.d.rx += self.dllp_source.valid[i].eq(1)
 
-                for i in range(4):
-                    m.d.rx += self.dllp_source.valid[i].eq(1)
-
-            with m.Elif(last_last_last_valid & ~sink_valid):
-                m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
-                m.d.rx += self.dllp_source.symbol[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
-                m.d.rx += self.dllp_source.symbol[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
-                m.d.rx += self.dllp_source.symbol[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
-
-                with m.If(self.nullify):
-                    m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.EDB)
-                    m.d.rx += self.nullify.eq(0)
-
-                with m.Else():
-                    m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.END)
-                    m.d.rx += unacknowledged_tlp_fifo.w_data.eq(self.next_transmit_seq)
-                    m.d.rx += unacknowledged_tlp_fifo.w_en.eq(1)
-                    m.d.rx += self.next_transmit_seq.eq(self.next_transmit_seq + 1)
+                    m.next = "Post-2"
                 
-                m.d.rx += self.replay_timer_running.eq(1) # TODO: Maybe this should be in the Else block above
+                with m.State("Post-2"):
+                    m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
+                    m.d.rx += self.dllp_source.symbol[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+                    m.d.rx += self.dllp_source.symbol[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+                    m.d.rx += self.dllp_source.symbol[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
 
-                for i in range(4):
-                    m.d.rx += self.dllp_source.valid[i].eq(1)
+                    with m.If(self.nullify):
+                        m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.EDB)
+                        m.d.rx += self.nullify.eq(0)
+
+                    with m.Else():
+                        m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.END)
+                        m.d.rx += unacknowledged_tlp_fifo.w_data.eq(self.next_transmit_seq)
+                        m.d.rx += unacknowledged_tlp_fifo.w_en.eq(1)
+                        m.d.rx += self.next_transmit_seq.eq(self.next_transmit_seq + 1)
+                    
+                    m.d.rx += self.replay_timer_running.eq(1) # TODO: Maybe this should be in the Else block above
+
+                    for i in range(4):
+                        m.d.rx += self.dllp_source.valid[i].eq(1)
+
+                    m.next = "Idle"
+
+
+
+
+        # TODO: This could be a FSM
+        #with m.If(self.dllp_source.ready & unacknowledged_tlp_fifo.w_rdy):
+        #    m.d.comb += sink_ready.eq(1) # TODO: maybe move to rx?
+#
+        #    with m.If(~last_valid & sink_valid):
+        #        m.d.comb += reset_crc.eq(0)
+        #        m.d.comb += crc_input.eq(Cat(self.next_transmit_seq[8 : 12], Const(0, shape = 4), self.next_transmit_seq[0 : 8]))
+        #        m.d.rx += even_more_delay[0].eq(Ctrl.STP)
+        #        m.d.rx += even_more_delay[1].eq(self.next_transmit_seq[8 : 12])
+        #        m.d.rx += even_more_delay[2].eq(self.next_transmit_seq[0 : 8])
+        #        m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+        #        #for i in range(4):
+        #        #    m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+#
+        #    with m.Elif(last_valid & sink_valid):
+        #        m.d.comb += reset_crc.eq(0)
+        #        m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+        #        m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+        #        m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
+        #        m.d.rx += even_more_delay[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.valid[i].eq(1)
+#
+        #    with m.Elif(last_valid & ~sink_valid): # Maybe this can be done better and replaced by the two if blocks above
+        #        m.d.comb += reset_crc.eq(0)
+        #        m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
+        #        m.d.rx += even_more_delay[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+        #        m.d.rx += even_more_delay[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+        #        m.d.rx += even_more_delay[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.valid[i].eq(1)
+#
+        #    with m.Elif(last_last_valid & ~sink_valid):
+        #        m.d.rx += self.dllp_source.symbol[3].eq(tlp_bytes[8 * 0 : 8 * 1])
+#
+        #        for i in range(3):
+        #            m.d.rx += self.dllp_source.symbol[i].eq(even_more_delay[i])
+#
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.valid[i].eq(1)
+#
+        #    with m.Elif(last_last_last_valid & ~sink_valid):
+        #        m.d.comb += sink_ready.eq(0) # TODO: maybe move to rx?
+        #        m.d.rx += self.dllp_source.symbol[0].eq(tlp_bytes_before[8 * 1 : 8 * 2])
+        #        m.d.rx += self.dllp_source.symbol[1].eq(tlp_bytes_before[8 * 2 : 8 * 3])
+        #        m.d.rx += self.dllp_source.symbol[2].eq(tlp_bytes_before[8 * 3 : 8 * 4])
+#
+        #        with m.If(self.nullify):
+        #            m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.EDB)
+        #            m.d.rx += self.nullify.eq(0)
+#
+        #        with m.Else():
+        #            m.d.rx += self.dllp_source.symbol[3].eq(Ctrl.END)
+        #            m.d.rx += unacknowledged_tlp_fifo.w_data.eq(self.next_transmit_seq)
+        #            m.d.rx += unacknowledged_tlp_fifo.w_en.eq(1)
+        #            m.d.rx += self.next_transmit_seq.eq(self.next_transmit_seq + 1)
+        #        
+        #        m.d.rx += self.replay_timer_running.eq(1) # TODO: Maybe this should be in the Else block above
+#
+        #        for i in range(4):
+        #            m.d.rx += self.dllp_source.valid[i].eq(1)
 
 
         return m
@@ -318,8 +392,8 @@ class PCIeDLLTLPReceiver(Elaboratable):
             with m.If(self.nullify):
                 m.d.comb += Cat(tlp_bytes[0 : 8 * ratio]).eq(~lcrc.output) # ~~x = x
                 m.d.rx += Cat(tlp_bytes_before[0 : 8 * ratio]).eq(~lcrc.output)
-                m.d.rx += buffer.delete_tlp.eq(1)
-                m.d.rx += buffer.delete_tlp_id.eq(self.next_transmit_seq)
+                m.d.comb += buffer.delete_tlp.eq(1)
+                m.d.comb += buffer.delete_tlp_id.eq(self.next_transmit_seq)
 
             with m.Else():
                 m.d.comb += Cat(tlp_bytes[0 : 8 * ratio]).eq(lcrc.output) # TODO: Endianness correct?

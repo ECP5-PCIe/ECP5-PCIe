@@ -4,7 +4,7 @@ from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim import Simulator, Delay, Settle
 from ecp5_pcie.virtual_phy_Gen1_x1 import VirtualPCIePhy
 from ecp5_pcie.ltssm import State
-from ecp5_pcie.serdes import Ctrl
+from ecp5_pcie.serdes import Ctrl, compose
 
 
 class VirtualPCIeTestbench(Elaboratable):
@@ -40,7 +40,7 @@ class VirtualPCIeTestbench(Elaboratable):
         m.d.comb += self.serdes_d.lane.rx_symbol.eq(self.serdes_u.lane.tx_symbol)
 
 
-        m.d.comb += self.send_skp.eq(self.serdes_d.lane.tx_symbol == Cat(Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP))
+        m.d.comb += self.send_skp.eq(self.serdes_d.lane.tx_symbol == compose([Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP]))
 
 
         refclkcounter = self.refclkcounter

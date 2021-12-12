@@ -38,19 +38,23 @@ class TLPBuffer(Elaboratable):
         """TLP slots, this is a pointer table, first element is whether the pointer is valid and second element is the TLP ID, this is managed by this class should not be set externally"""
 
         self.send_tlp_id = Signal(12)
-        """The ID of the TLP to be sent"""
+        """The ID of the TLP to be sent, can be set 1 cycle later than send_tlp"""
         self.send_tlp = Signal()
-        """Write to 1 to start sending a TLP, it will be set back to 0 when it is done"""
+        """Set to 1 for 1 cycle to start sending a TLP"""
+        self.sending_tlp = Signal()
+        """Is 1 while TLP is being sent"""
 
         self.delete_tlp_id = Signal(12)
-        """The ID of the TLP to be deleted"""
+        """The ID of the TLP to be deleted, should be set in the same cycle as delete_tlp"""
         self.delete_tlp = Signal()
-        """Write 1 to delete TLP, it will be done in 1 cycle and be set back to 0"""
+        """Set to 1 for 1 cycle to delete TLP"""
 
         self.store_tlp_id = Signal(12)
-        """The ID of the TLP to be stored"""
+        """The ID of the TLP to be stored, can be set 1 cycle later than store_tlp"""
         self.store_tlp = Signal()
-        """Write to 1 to start storing a TLP, it will be set back to 0 when it is done"""
+        """Set to 1 for 1 cycle to start storing a TLP"""
+        self.storing_tlp = Signal()
+        """Is 1 while TLP is being stored"""
 
         self.slots_full = Signal(reset = 0)
         """Whether all TLP slots are full, check for free space with ~slots_full"""
@@ -93,7 +97,11 @@ class TLPBuffer(Elaboratable):
                 m.d.rx += tlp_source_valid[0].eq(0)
                 m.d.rx += tlp_source_valid[1].eq(0)
                 with m.If(self.send_tlp):
+                    m.d.rx += self.sending_tlp.eq(1)
                     m.next = "Set offset"
+                    
+                with m.Else():
+                    m.d.rx += self.sending_tlp.eq(0)
 
             with m.State("Set offset"):
                 offset = 0
@@ -120,7 +128,6 @@ class TLPBuffer(Elaboratable):
                     m.d.rx += read_address_counter.eq(0)
                     m.d.rx += tlp_source_valid[0].eq(~read_port.data[-1])
                     m.d.rx += tlp_source_valid[1].eq(~read_port.data[-1])
-                    m.d.rx += self.send_tlp.eq(0)
                     m.next = "Idle"
         
 
@@ -129,7 +136,6 @@ class TLPBuffer(Elaboratable):
             for i in range(self.max_tlps):
                 with m.If(self.slots[i][0] & (self.delete_tlp_id == self.slots[i][1])):
                     m.d.rx += self.slots[i][0].eq(0)
-                    m.d.rx += self.delete_tlp.eq(0)
 
 
         end_tlp = Signal()
@@ -150,18 +156,22 @@ class TLPBuffer(Elaboratable):
             with m.State("Idle"):
                 with m.If(self.store_tlp & ~self.slots_full):
                     m.next = "Set offset"
+                    m.d.rx += self.storing_tlp.eq(1)
+                    
+                with m.Else():
+                    m.d.rx += self.storing_tlp.eq(0)
 
             with m.State("Set offset"):
                 offset = 0
                 slot_exists = 0
 
                 for i in range(self.max_tlps):
-                    slot_exists = slot_exists | (self.slots[i][1] == self.store_tlp_id)
+                    slot_exists = slot_exists | ((self.slots[i][1] == self.store_tlp_id) & self.slots[i][0])
                     offset = Mux(~self.slots[i][0], i, offset)
 
                 for i in range(self.max_tlps):
                     with m.If((offset == i) & ~slot_exists & ~self.slots_full):
-                        m.d.rx += self.slots[i][0].eq(1)
+                        m.d.rx += self.slots[i][0].eq(1) # TODO: Should this be moved down to Receive to the transition to Idle in case a TLP is being stored incompletely?
                         m.d.rx += self.slots[i][1].eq(self.store_tlp_id)
 
                 with m.If(slot_exists):
@@ -190,7 +200,6 @@ class TLPBuffer(Elaboratable):
                     m.d.rx += self.tlp_sink.ready.eq(0)
                     m.d.rx += write_address_counter.eq(0)
                     m.d.rx += write_port.en.eq(0)
-                    m.d.rx += self.store_tlp.eq(0)
                     m.next = "Idle"
 
 

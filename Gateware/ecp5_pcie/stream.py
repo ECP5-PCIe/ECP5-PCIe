@@ -39,7 +39,7 @@ class StreamInterface(): # From Yumewatari
             sigs |= self.valid[i]
 
         self.all_valid = sigs
-        self.ready  =  Signal()
+        self.ready  =  Signal(name=f"{name}_ready")
     
     """
     Connects a source to a sink.
