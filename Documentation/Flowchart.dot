@@ -1,0 +1,115 @@
+digraph graph_name {
+  graph [
+    charset = "UTF-8";
+    label = "ECP5-PCIe flowchart",
+    labelloc = "t",
+    labeljust = "c",
+    bgcolor = white,
+    fontcolor = black,
+    fontsize = 18,
+    style = "filled",
+    rankdir = TB,
+    margin = 0.2,
+    splines = true,
+    ranksep = 1.0,
+    nodesep = 1.0,
+    #layout=fdp,
+    overlap=scalexy,
+  ];
+
+  node [
+    style = "solid, filled",
+    fontsize = 16,
+    fontcolor = black,
+    fontname = "Migu 1M",
+    color = black,
+    fillcolor = "#ffffff",
+    fixedsize = true,
+    height = 0.5,
+    width = 3.2,
+    shape = box
+  ];
+
+  edge [
+    style = solid,
+    fontsize = 14,
+    fontcolor = black,
+    fontname = "Migu 1M",
+    color = black,
+    labelfloat = true,
+    labeldistance = 2.5,
+    labelangle = 70
+  ];
+
+  subgraph cluster1 {
+    label = "Legend";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Phy"  [fillcolor = phy_color];
+    "DLLP" [fillcolor = dll_color];
+    "TLP"  [fillcolor = tl_color];
+  }
+
+  // node define
+  subgraph cluster2 {
+    margin = 10;
+    label = "LatticeECP5PCIePhy";
+
+    node [fillcolor = phy_color];
+    "LatticeECP5PCIeSERDESx4";
+    "PCIeSERDESAligner";
+
+    subgraph cluster3 {
+      label = "PCIePhy                          ";
+
+      node [fillcolor = phy_color];
+      "PCIeScrambler";
+      "PCIePhyRX";
+      "PCIePhyTX";
+      "PCIeLTSSM";
+
+      node [fillcolor = dll_color];
+      "PCIeDLLPTransmitter";
+      "PCIeDLLPReceiver";
+      "PCIeDLL";
+      "PCIeDLLTLPTransmitter";
+      "PCIeDLLTLPReceiver";
+
+      node [fillcolor = tl_color];
+      "PCIeVirtualTLPGenerator";
+
+      {rank = same; "PCIePhyRX"; "PCIePhyTX"; "PCIeLTSSM";}
+      {rank = same; "PCIeDLLPReceiver"; "PCIeDLLPTransmitter"; "PCIeDLL";}
+      {rank = same; "PCIeDLLTLPReceiver"; "PCIeDLLTLPTransmitter";}
+      {rank = same; "PCIeVirtualTLPGenerator";}
+    }
+  }
+
+  // alignment
+
+  "DLLP" -> "LatticeECP5PCIeSERDESx4" [style=invis];
+
+  // edge define
+
+  "LatticeECP5PCIeSERDESx4" -> "PCIeSERDESAligner" [dir=both];
+  "PCIeSERDESAligner" -> "PCIeScrambler" [dir=both];
+  "PCIeSERDESAligner" -> "PCIePhyRX" [dir=both, constraint=false];
+
+
+  "PCIeScrambler" -> "PCIePhyRX";
+  "PCIePhyTX" -> "PCIeScrambler";
+  "PCIeScrambler" -> "PCIeLTSSM" [dir=both, constraint=true, style=dashed];
+  "PCIePhyRX" -> "PCIeLTSSM" [style=dashed];
+  "PCIeLTSSM" -> "PCIePhyTX" [style=dashed];
+
+  "PCIeDLLPTransmitter" -> "PCIePhyTX" [style=bold];
+  "PCIePhyRX" -> "PCIeDLLPReceiver" [style=bold];
+  "PCIeDLLPReceiver" -> "PCIeDLL" [style=dashed];
+  "PCIeDLL" -> "PCIeDLLPTransmitter" [style=dashed];
+  "PCIeDLLTLPTransmitter" -> "PCIeDLLPTransmitter" [style=bold];
+  "PCIeDLLPReceiver" -> "PCIeDLLTLPReceiver" [style=bold];
+  "PCIeDLLTLPReceiver" -> "PCIeDLLTLPTransmitter" [dir=both, style=dashed];
+
+  "PCIeDLLTLPTransmitter" -> "PCIeVirtualTLPGenerator" [style=bold, dir=back];
+}
