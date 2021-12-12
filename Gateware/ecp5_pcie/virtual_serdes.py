@@ -1,6 +1,6 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.fifo import SyncFIFOBuffered, AsyncFIFOBuffered
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.fifo import SyncFIFOBuffered, AsyncFIFOBuffered
 from .serdes import PCIeSERDESInterface, K, Ctrl
 
 

@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 from .serdes import K, D, Ctrl, PCIeScrambler
 from .phy_rx import PCIePhyRX
 from .phy_tx import PCIePhyTX

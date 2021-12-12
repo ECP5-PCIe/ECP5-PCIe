@@ -1,8 +1,8 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.sim.pysim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.build import *
+from amaranth.sim.pysim import Simulator, Delay, Settle
 from ecp5_pcie.crc import CRC
-from nmigen_boards.versa_ecp5_5g import VersaECP55GPlatform
+from amaranth_boards.versa_ecp5_5g import VersaECP55GPlatform
 import random
 
 if __name__ == "__main__":
@@ -55,6 +55,6 @@ if __name__ == "__main__":
             return m
 
     import os
-    os.environ["NMIGEN_verbose"] = "Yes"
+    os.environ["AMARANTH_verbose"] = "Yes"
 
     VersaECP55GPlatform().build(TestCRC(), do_program=False)

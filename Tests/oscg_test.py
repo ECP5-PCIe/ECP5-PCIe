@@ -1,7 +1,7 @@
 import pcie_adapter as FPGA
 from avr_test import Test as AVRTest
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 from ecp5_pcie.utils.parts import PLL1Ch
 
 class Test(Elaboratable):
@@ -36,7 +36,7 @@ class Test(Elaboratable):
         return m
 
 import os
-os.environ["NMIGEN_verbose"] = "Yes"
+os.environ["AMARANTH_verbose"] = "Yes"
 
 if __name__ == "__main__":
     FPGA.ECP5PCIeAdapterPlatform().build(Test(), do_program=True)

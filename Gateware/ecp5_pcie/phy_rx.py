@@ -1,6 +1,6 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.fifo import SyncFIFOBuffered
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.fifo import SyncFIFOBuffered
 from .serdes import K, D, compose, Ctrl, PCIeSERDESInterface, PCIeScrambler
 from .layouts import ts_layout
 from .stream import StreamInterface

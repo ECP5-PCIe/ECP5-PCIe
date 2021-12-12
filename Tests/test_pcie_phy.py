@@ -1,8 +1,8 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.cdc import FFSynchronizer
-from nmigen_boards import versa_ecp5_5g as FPGA
-from nmigen_stdio.serial import AsyncSerial
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.cdc import FFSynchronizer
+from amaranth_boards import versa_ecp5_5g as FPGA
+from amaranth_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger2, UARTDebugger
 from ecp5_pcie.ecp5_phy_Gen1_x1 import LatticeECP5PCIePhy   
 from ecp5_pcie.utils.parts import DTR
@@ -109,7 +109,7 @@ import serial
 from glob import glob
 
 import os
-os.environ["NMIGEN_verbose"] = "Yes"
+os.environ["AMARANTH_verbose"] = "Yes"
 
 
 if __name__ == "__main__":

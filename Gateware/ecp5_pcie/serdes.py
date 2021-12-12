@@ -1,8 +1,8 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.hdl.ast import Part
-from nmigen.lib.fifo import AsyncFIFOBuffered
-from nmigen.lib.cdc import FFSynchronizer
+from amaranth import *
+from amaranth.build import *
+from amaranth.hdl.ast import Part
+from amaranth.lib.fifo import AsyncFIFOBuffered
+from amaranth.lib.cdc import FFSynchronizer
 
 from enum import IntEnum
 

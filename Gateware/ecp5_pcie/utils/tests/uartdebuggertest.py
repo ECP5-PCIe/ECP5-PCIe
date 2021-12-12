@@ -1,9 +1,9 @@
 import itertools
 
-from nmigen import *
-from nmigen.build import *
-from nmigen_boards import versa_ecp5_5g as FPGA
-from nmigen_stdio import serial
+from amaranth import *
+from amaranth.build import *
+from amaranth_boards import versa_ecp5_5g as FPGA
+from amaranth_stdio import serial
 from ..utils import UARTDebugger, Resizer
 from ..parts import PLL1Ch
 
@@ -30,5 +30,5 @@ class UARTDebuggerTest(Elaboratable):
         return m
 
 import os
-os.environ["NMIGEN_verbose"] = "Yes"
+os.environ["AMARANTH_verbose"] = "Yes"
 FPGA.VersaECP55GPlatform().build(UARTDebuggerTest(), do_program=True, nextpnr_opts="--timing-allow-fail -r")

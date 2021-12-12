@@ -1,10 +1,10 @@
 import itertools
-from nmigen import *
-from nmigen.build import *
-from nmigen.hdl import Memory
-from nmigen.hdl.ast import Rose, Fell
-from nmigen_stdio.serial import AsyncSerial
-from nmigen_boards import versa_ecp5_5g as FPGA
+from amaranth import *
+from amaranth.build import *
+from amaranth.hdl import Memory
+from amaranth.hdl.ast import Rose, Fell
+from amaranth_stdio.serial import AsyncSerial
+from amaranth_boards import versa_ecp5_5g as FPGA
 
 __all__ = ["RP64PCIeInit"]
 

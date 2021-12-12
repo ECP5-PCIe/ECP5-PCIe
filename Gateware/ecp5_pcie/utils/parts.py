@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 
 
 __all__ = ["PLL", "PLL1Ch", "DTR"]

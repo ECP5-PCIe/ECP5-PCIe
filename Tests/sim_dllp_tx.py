@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.sim.pysim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.sim.pysim import Simulator, Delay, Settle
 from ecp5_pcie.dllp import PCIeDLLPTransmitter
 from ecp5_pcie.serdes import PCIeSERDESInterface, Ctrl
 import random

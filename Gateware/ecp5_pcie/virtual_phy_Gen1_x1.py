@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 from .virtual_serdes import VirtualPCIeSERDESx4
 from .ecp5_serdes import LatticeECP5PCIeSERDES
 from .serdes import PCIeSERDESAligner, LinkSpeed

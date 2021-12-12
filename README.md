@@ -1,6 +1,6 @@
 # ECP5-PCIe
 ## ECP5 to PCIe interface development
-The goal of this project is to provide a PCIe interface in nMigen.
+The goal of this project is to provide a PCIe interface in [amaranth](https://github.com/amaranth-lang/amaranth).
 ## Previous work
 There already exists a PCIe physical layer by whitequark called [Yumewatari](https://github.com/whitequark/Yumewatari) and a TLP and DMA layer by enjoy-digital called [litepcie](https://github.com/enjoy-digital/litepcie/tree/master/litepcie) written in omigen.
 

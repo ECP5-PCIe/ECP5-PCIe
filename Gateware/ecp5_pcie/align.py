@@ -1,6 +1,6 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.hdl.ast import Part
+from amaranth import *
+from amaranth.build import *
+from amaranth.hdl.ast import Part
 
 
 __all__ = ["SymbolSlip"]

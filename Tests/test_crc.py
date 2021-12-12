@@ -1,6 +1,6 @@
 from ecp5_pcie.crc import CRC, LCRC
-from nmigen import *
-from nmigen.sim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.sim import Simulator, Delay, Settle
 
 def to_array(value : int, bits : int):
     result = []

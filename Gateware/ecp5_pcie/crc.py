@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 
 class SingleCRC(Elaboratable):
 

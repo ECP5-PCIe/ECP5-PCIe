@@ -1,7 +1,7 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.cdc import FFSynchronizer
-from nmigen.sim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.cdc import FFSynchronizer
+from amaranth.sim import Simulator, Delay, Settle
 from ecp5_pcie.virtual_phy_Gen1_x1 import VirtualPCIePhy
 from ecp5_pcie.ltssm import State
 from ecp5_pcie.serdes import Ctrl

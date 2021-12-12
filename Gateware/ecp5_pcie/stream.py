@@ -1,4 +1,4 @@
-from nmigen import *
+from amaranth import *
 from .serdes import ctrl_set, Ctrl
 
 class StreamInterface(): # From Yumewatari
@@ -43,13 +43,13 @@ class StreamInterface(): # From Yumewatari
     
     """
     Connects a source to a sink.
-    Returns nMigen statements which need to be added to a domain. For example 'm.d.comb += source.connect(sink)'
+    Returns amaranth statements which need to be added to a domain. For example 'm.d.comb += source.connect(sink)'
 
     Parameters
     ----------
     sink : StreamInterface
         The sink to connect this source to
-    domain : nMigen domain to add statements to
+    domain : amaranth domain to add statements to
         For example m.d.comb
     """
     def connect(self, sink, domain):

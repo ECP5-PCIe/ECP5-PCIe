@@ -1,7 +1,7 @@
 # LibreOffice files
 .~lock*
 
-# nMigen simulations
+# amaranth simulations
 *.gtkw
 *.vcd
 

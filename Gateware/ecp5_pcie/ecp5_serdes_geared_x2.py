@@ -1,7 +1,7 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
-from nmigen.lib.fifo import AsyncFIFOBuffered, AsyncFIFO
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.cdc import FFSynchronizer, AsyncFFSynchronizer
+from amaranth.lib.fifo import AsyncFIFOBuffered, AsyncFIFO
 from .serdes import PCIeSERDESInterface, K, Ctrl
 from .ecp5_serdes import LatticeECP5PCIeSERDES
 

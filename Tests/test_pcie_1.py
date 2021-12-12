@@ -1,7 +1,7 @@
-from nmigen import *
-from nmigen.build import *
-from nmigen_boards import versa_ecp5_5g as FPGA
-from nmigen_stdio.serial import AsyncSerial
+from amaranth import *
+from amaranth.build import *
+from amaranth_boards import versa_ecp5_5g as FPGA
+from amaranth_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger, Resizer
 from ecp5_pcie.ecp5_serdes_broken import LatticeECP5PCIeSERDES, PCIeSERDESAligner
 from ecp5_pcie.utils.parts import PLL1Ch
@@ -72,7 +72,7 @@ class Test(Elaboratable):
         return m
 
 import os
-os.environ["NMIGEN_verbose"] = "Yes"
+os.environ["AMARANTH_verbose"] = "Yes"
 
 if __name__ == "__main__":
     FPGA.VersaECP55GPlatform().build(Test(), do_program=True)

@@ -1,6 +1,6 @@
 from ecp5_pcie.memory import TLPBuffer
-from nmigen import *
-from nmigen.sim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.sim import Simulator, Delay, Settle
 
 
 

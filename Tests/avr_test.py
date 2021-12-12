@@ -1,6 +1,6 @@
 import pcie_adapter as FPGA
-from nmigen import *
-from nmigen.build import *
+from amaranth import *
+from amaranth.build import *
 from utils.parts import PLL1Ch
 
 class Test(Elaboratable):

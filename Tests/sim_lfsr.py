@@ -1,5 +1,5 @@
-from nmigen import *
-from nmigen.back.pysim import Simulator, Delay, Settle
+from amaranth import *
+from amaranth.back.pysim import Simulator, Delay, Settle
 from ecp5_pcie.lfsr import PCIeLFSR
 import random
 

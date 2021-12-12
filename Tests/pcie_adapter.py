@@ -1,11 +1,11 @@
 import os
 import subprocess
 
-from nmigen.build import *
-from nmigen.vendor.lattice_ecp5 import LatticeECP5Platform
-from nmigen_boards.resources import *
+from amaranth.build import *
+from amaranth.vendor.lattice_ecp5 import LatticeECP5Platform
+from amaranth_boards.resources import *
 
-# Based on https://github.com/nmigen/nmigen-boards/blob/master/nmigen_boards/ecp5_5g_evn.py
+# Based on https://github.com/amaranth/amaranth-boards/blob/master/amaranth_boards/ecp5_5g_evn.py
 
 
 __all__ = ["ECP5PCIeAdapterPlatform"]

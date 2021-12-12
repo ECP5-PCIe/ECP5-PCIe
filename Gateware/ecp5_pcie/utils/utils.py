@@ -1,7 +1,7 @@
 import itertools
-from nmigen import *
-from nmigen.build import *
-from nmigen.lib.fifo import AsyncFIFOBuffered
+from amaranth import *
+from amaranth.build import *
+from amaranth.lib.fifo import AsyncFIFOBuffered
 
 __all__ = ["Sequencer", "FunctionSequencer", "LFSR", "Resizer", "Rotator", "HexNumber", "UARTDebugger"]
 
@@ -232,7 +232,7 @@ class UARTDebugger(Elaboratable):
     Parameters
     ----------
     uart : AsyncSerial
-        UART interface from nmigen_stdio
+        UART interface from amaranth_stdio
     words : int
         Number of bytes
     depth : int
@@ -337,7 +337,7 @@ class UARTDebugger2(Elaboratable):
     Parameters
     ----------
     uart : AsyncSerial
-        UART interface from nmigen_stdio
+        UART interface from amaranth_stdio
     words : int
         Number of bytes
     depth : int
@@ -446,7 +446,7 @@ class UARTDebugger2(Elaboratable):
                 sendByteFSM(ord('Z'), "Collect")
         return m
 
-class __UARTDebuggerWrapper: # Not really usable, nMigen part of Gateware needs to be executed to determine signal sizes for this to be usable (and the read function isn't finished).
+class __UARTDebuggerWrapper: # Not really usable, amaranth part of Gateware needs to be executed to determine signal sizes for this to be usable (and the read function isn't finished).
     """UART Debugger Wrapper. It wraps an UARTDebugger2 for ease of use.
     Parameters
     ----------
@@ -461,7 +461,7 @@ class __UARTDebuggerWrapper: # Not really usable, nMigen part of Gateware needs 
     Parameters
     ----------
     uart : AsyncSerial
-        UART interface from nmigen_stdio
+        UART interface from amaranth_stdio
     data : Dictionary of Name, Signal, in
         Data to sample
     data_domain : string
