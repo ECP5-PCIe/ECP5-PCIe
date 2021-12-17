@@ -31,6 +31,4 @@ class PCIeVirtualTLPGenerator(Elaboratable):
                 for i in range(ratio):
                     m.d.rx += self.tlp_source.valid[i].eq(0)
 
-
-
         return m

@@ -92,7 +92,7 @@ class TLPBuffer(Elaboratable):
         for i in range(self.max_tlps):
             slots_full_statement = slots_full_statement & self.slots[i][0]
 
-        m.d.comb += self.slots_full.eq(slots_full_statement)
+        m.d.comb += self.slots_full.eq(slots_full_statement) # TODO: Maybe replace with Cat([i[0] for i in self.slots]).all()? (~….any() for slots_empty)
 
         read_address_base = Signal(range(self.max_tlps))
         read_address_counter = Signal(range(self.tlp_depth))
@@ -199,7 +199,7 @@ class TLPBuffer(Elaboratable):
                     slot_exists = slot_exists | ((self.slots[i][1] == self.store_tlp_id) & self.slots[i][0])
                     offset = Mux(~self.slots[i][0], i, offset)
 
-                for i in range(self.max_tlps):
+                for i in range(self.max_tlps): # TODO: This can also be solved with amaranth.lib.coding.PriorityEncoder
                     with m.If((offset == i) & ~slot_exists & ~self.slots_full):
                         m.d.rx += self.slots[i][0].eq(1) # TODO: Should this be moved down to Receive to the transition to Idle in case a TLP is being stored incompletely?
                         m.d.rx += self.slots[i][1].eq(self.store_tlp_id)

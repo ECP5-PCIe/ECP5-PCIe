@@ -102,6 +102,7 @@ class PCIeDLLTLPTransmitter(Elaboratable):
 
         # If ACK received:
         # Delete entry from retry buffer and advance unacknowledged_tlp_fifo
+        # TODO: This doesn't check whether the ID stored in the FIFO was the one which was acknowledged. Maybe it can be replaced with a counter or that can be checked.
         with m.If(self.dll.received_ack_nak & self.dll.received_ack):
             m.d.comb += buffer.delete_tlp.eq(1)
             m.d.comb += buffer.delete_tlp_id.eq(self.dll.received_ack_nak_id)
@@ -444,7 +445,7 @@ class PCIeDLLTLPReceiver(Elaboratable):
                         m.d.comb += buffer.delete_tlp.eq(1)
                         m.d.comb += buffer.delete_tlp_id.eq(self.actual_receive_seq)
 
-                    with m.Else():
+                    with m.Else(): # TODO: Delete TLP here too?
                         nak()
 
                 m.next = "Idle"
