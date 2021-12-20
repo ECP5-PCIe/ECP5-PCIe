@@ -202,6 +202,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         serdes_tx_reset = Signal()
         serdes_rx_reset = Signal()
         pcs_reset       = Signal()
+        cnt = Signal(8)
 
         with m.FSM(domain="rx"): # Inspirations taken from LUNA
             with m.State("init"):
@@ -211,8 +212,10 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     pcs_reset      .eq(1),
                     lane.reset_done.eq(0),
                 ]
-                #with m.If(~self.lane.reset):
-                m.next = "start-tx"
+                m.d.rx += cnt.eq(0)
+
+                with m.If(~self.lane.reset):
+                    m.next = "start-tx"
 
             with m.State("start-tx"):
                 m.d.comb += [
@@ -221,7 +224,10 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     pcs_reset      .eq(1),
                     lane.reset_done.eq(0),
                 ]
-                with m.If(~tx_lol_s):
+                m.d.rx += cnt.eq(cnt + 1)
+
+                with m.If(~tx_lol_s | (cnt > 200)):
+                    m.d.rx += cnt.eq(0)
                     m.next = "start-rx"
 
             with m.State("start-rx"):
@@ -231,7 +237,9 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                     pcs_reset      .eq(1),
                     lane.reset_done.eq(0),
                 ]
-                with m.If(~rx_lol_s):
+                m.d.rx += cnt.eq(cnt + 1)
+
+                with m.If(~rx_lol_s | (cnt > 200)):
                     m.next = "start-pcs-done"
 
             with m.State("start-pcs-done"):
@@ -403,13 +411,13 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             # RX CH ­— input
             "i_CHx_FFC_SB_INV_RX"     :rx_inv,
     
-            "p_CHx_REQ_EN"            :"0b1",
-            "p_CHx_RX_RATE_SEL"       :"0d8",
-            "p_CHx_REQ_LVL_SET"       :"0b00",
+            #"p_CHx_REQ_EN"            :"0b1",
+            #"p_CHx_RX_RATE_SEL"       :"0d8",     # LUNA uses 0d09 here
+            #"p_CHx_REQ_LVL_SET"       :"0b00",    # LUNA uses 0b01 (9 dB) here
 
             "p_CHx_RTERM_RX"          :"0d22",    # 50 Ohm (wizard value used, does not match datasheet)
             "p_CHx_RXIN_CM"           :"0b11",    # CMFB (wizard value used)
-            "p_CHx_RXTERM_CM"         :"0b11",    # RX Input (wizard value used)
+            "p_CHx_RXTERM_CM"         :"0b10",    # RX Input terminate to GND
 
             # RX CH ­— clocking
             "i_CHx_RX_REFCLK"         :self.ref_clk,
@@ -465,6 +473,22 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
             "p_CHx_DCOSCALEI"         :"0b00",
             "p_CHx_DCOSTARTVAL"       :"0b000",
             "p_CHx_DCOSTEP"           :"0b00",    # end undocumented
+            #"p_CHx_DCOATDCFG"         : "0b00",   # begin undocumented (sample code used) (from LUNA https://github.com/greatscottgadgets/luna/blob/0a0393528519d68bfd8dcb2b771502134f331923/luna/gateware/interface/serdes_phy/backends/ecp5.py)
+            #"p_CHx_DCOATDDLY"         : "0b00",
+            #"p_CHx_DCOBYPSATD"        : "0b1",
+            #"p_CHx_DCOCALDIV"         : "0b000",
+            #"p_CHx_DCOCTLGI"          : "0b011",
+            #"p_CHx_DCODISBDAVOID"     : "0b0",
+            #"p_CHx_DCOFLTDAC"         : "0b00",
+            #"p_CHx_DCOFTNRG"          : "0b001",
+            #"p_CHx_DCOIOSTUNE"        : "0b010",
+            #"p_CHx_DCOITUNE"          : "0b00",
+            #"p_CHx_DCOITUNE4LSB"      : "0b010",
+            #"p_CHx_DCOIUPDNX2"        : "0b1",
+            #"p_CHx_DCONUOFLSB"        : "0b100",
+            #"p_CHx_DCOSCALEI"         : "0b01",
+            #"p_CHx_DCOSTARTVAL"       : "0b010",
+            #"p_CHx_DCOSTEP"           : "0b11",   # end undocumented
 
             # RX CH — link state machine
             "i_CHx_FFC_SIGNAL_DETECT" :rx_det,    # WARNING: If 0, then no symbol lock happens

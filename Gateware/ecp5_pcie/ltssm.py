@@ -124,6 +124,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             m.d.rx += tx_ts_count.eq(0)
             m.d.rx += extra_signals.eq(0)
             m.d.rx += timer.eq(0)
+
             m.next = next_state
 
 
@@ -157,6 +158,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             with m.If((timer == time_in_ms * clocks_per_ms) | or_conds):
                 m.d.rx += timer.eq(0)
                 reset_ts_count_and_jump(next_state)
+
             return timer
 
 
@@ -178,11 +180,11 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # Reset DCU when coming to Detect
                 m.d.rx += ready_reset.eq(ready_reset & ~lane.reset)
-                m.d.rx += lane.reset.eq(timer < 4)
+                m.d.comb += lane.reset.eq(timer < 2)
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
-                timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done | lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
+                timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done & lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
 
 
             with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes

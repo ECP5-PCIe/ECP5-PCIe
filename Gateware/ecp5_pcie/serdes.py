@@ -185,11 +185,11 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
         #self.ratio        = lane.ratio
 #
-        #self.rx_invert    = lane.rx_invert
-        #self.rx_align     = lane.rx_align
-        #self.rx_present   = lane.rx_present
-        #self.rx_locked    = lane.rx_locked
-        #self.rx_aligned   = lane.rx_aligned
+        self.rx_invert    = lane.rx_invert
+        self.rx_align     = lane.rx_align
+        self.rx_present   = lane.rx_present
+        self.rx_locked    = lane.rx_locked
+        self.rx_aligned   = lane.rx_aligned
 #
         #self.rx_symbol    = Signal(lane.ratio * 9)
         #self.rx_valid     = Signal(lane.ratio)
@@ -199,15 +199,15 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         #self.tx_disp      = Signal(lane.ratio)
         #self.tx_e_idle    = Signal(lane.ratio)
 #
-        #self.det_enable   = lane.det_enable
-        #self.det_valid    = lane.det_valid
-        #self.det_status   = lane.det_status
+        self.det_enable   = lane.det_enable
+        self.det_valid    = lane.det_valid
+        self.det_status   = lane.det_status
 #
         #self.frequency    = lane.frequency
         #self.speed        = lane.speed
 #
-        #self.reset        = lane.reset
-        #self.reset_done   = lane.reset_done
+        self.reset        = lane.reset
+        self.reset_done   = lane.reset_done
         self.frequency = lane.frequency
 
         self.__lane = lane
@@ -268,11 +268,11 @@ class PCIeScrambler(PCIeSERDESInterface):
         super().__init__(lane.ratio)
         #self.ratio        = lane.ratio
 #
-        #self.rx_invert    = lane.rx_invert
-        #self.rx_align     = lane.rx_align
-        #self.rx_present   = lane.rx_present
-        #self.rx_locked    = lane.rx_locked
-        #self.rx_aligned   = lane.rx_aligned
+        self.rx_invert    = lane.rx_invert
+        self.rx_align     = lane.rx_align
+        self.rx_present   = lane.rx_present
+        self.rx_locked    = lane.rx_locked
+        self.rx_aligned   = lane.rx_aligned
 #
         #self.rx_symbol    = Signal(lane.ratio * 9)
         #self.rx_valid     = Signal(lane.ratio)
@@ -282,17 +282,17 @@ class PCIeScrambler(PCIeSERDESInterface):
         #self.tx_disp      = Signal(lane.ratio)
         #self.tx_e_idle    = Signal(lane.ratio)
 #
-        #self.det_enable   = lane.det_enable
-        #self.det_valid    = lane.det_valid
-        #self.det_status   = lane.det_status
+        self.det_enable   = lane.det_enable
+        self.det_valid    = lane.det_valid
+        self.det_status   = lane.det_status
 #
         self.enable        = Signal()
 #
         #self.frequency    = lane.frequency
         #self.speed        = lane.speed
         #
-        #self.reset        = lane.reset
-        #self.reset_done   = lane.reset_done
+        self.reset        = lane.reset
+        self.reset_done   = lane.reset_done
 
         self.__lane = lane
 
@@ -363,5 +363,8 @@ class PCIeScrambler(PCIeSERDESInterface):
         m.d.rx += self.__lane.tx_set_disp.eq(self.tx_set_disp)
         m.d.rx += self.__lane.tx_disp    .eq(self.tx_disp)
         m.d.rx += self.__lane.tx_e_idle  .eq(self.tx_e_idle)
+
+        #m.d.comb += self.__lane.reset.eq(self.reset)
+        #m.d.comb += self.reset_done.eq(self.__lane.reset_done)
 
         return m

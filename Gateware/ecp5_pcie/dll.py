@@ -204,7 +204,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(transmit_dllps):
                     m.next = "P"
 
-                with m.Elif(send_ack_nak):
+                with m.Elif(send_ack_nak & ~sending_tlp): # TODO: This might be a problem
                     m.next = "Ack_Nak"
 
             # Const(n, 2) means n = 0: P, n = 1: NP, n = 2: CPL

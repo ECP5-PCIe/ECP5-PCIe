@@ -25,7 +25,7 @@ TS_TEST = False
 
 # Record a State
 STATE_TEST = False
-TESTING_STATE = State.L0
+TESTING_STATE = State.Configuration_Idle
 
 # Record LTSSM state transitions
 FSM_LOG = True
@@ -41,7 +41,7 @@ class SERDESTestbench(Elaboratable):
 
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=True) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.phy = phy = PCIePhy(aligner)
         lane = phy.descrambled_lane
@@ -87,7 +87,8 @@ class SERDESTestbench(Elaboratable):
         ]
 
         # Clock outputs for the RX and TX clock domain
-        platform.add_resources([Resource("test", 0, Pins("B17", dir="o"))]) # X4 33
+        #platform.add_resources([Resource("test", 0, Pins("B17", dir="o"))]) # X4 33
+        platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))]) # X3 4
         m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))]) # X4 39
         m.d.comb += platform.request("test", 1).o.eq(ClockSignal("rxf"))
@@ -176,15 +177,17 @@ class SERDESTestbench(Elaboratable):
                 m.d.rx += time_since_state.eq(0)
             with m.Else():
                 m.d.rx += time_since_state.eq(time_since_state + 1)
+
+            #m.d.rx += time_since_state.eq(ltssm.time_since_last_skp_or_idle)
             #m.d.rx += time_since_state.eq(ltssm.status.link.scrambling)
             #m.d.rx += time_since_state.eq(ltssm.rx_idl_count_total)
             #m.d.rx += time_since_state.eq(Cat(phy_rx.inverted, lane.rx_invert))
 
-            debug = UARTDebugger(uart, 9, CAPTURE_DEPTH, Cat(
+            debug = UARTDebugger(uart, 14, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,
-                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(2)
-                ), "rx")#, (ltssm.debug_state == TESTING_STATE) & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
+                lane.rx_locked & lane.rx_present & lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, Signal(6)
+                ), "rx", (ltssm.debug_state == TESTING_STATE), timeout=100 * 1000 * 1000)# & (time_since_state < CAPTURE_DEPTH), timeout=100 * 1000 * 1000)
 
         elif FSM_LOG:
             # Keep track of time in 8 nanosecond increments
@@ -200,6 +203,11 @@ class SERDESTestbench(Elaboratable):
             # Real time FF sync
             realtime_rx = Signal(64)
             m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
+
+            #errors = Signal(64)
+            #with m.If():
+            #    m.d.rx += errors.eq(errors + 1)
+            #m.d.rx += realtime_rx.eq(ltssm.time_since_last_skp_or_idle)
 
             last_state = Signal(8)
             m.d.rx += last_state.eq(ltssm.debug_state)
@@ -342,21 +350,23 @@ if __name__ == "__main__":
                     # R = RX symbol
                     # T = TX symbol
                     # v = RX valid
-                    chars = port.read(9 * 2 + 1)
+                    chars = port.read(14 * 2 + 1)
                     try:
                         data = int(chars, 16)
                     except:
                         print("err " + str(chars))
                         data = 0
                     time = get_bytes(data, 0, 4)
-                    symbols = [get_bits(data, 32 + 9 * i, 9) for i in range(4)]
-                    valid = [get_bits(data, 32 + 9 * 4, 1), get_bits(data, 33 + 9 * 4, 1)]
+                    symbols = [get_bits(data, 32 + 9 * i, 9) for i in range(8)]
+                    valid = [get_bits(data, 32 + 9 * 8, 1), get_bits(data, 33 + 9 * 8, 1)]
                     print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
+                    print("{:{width}}".format(valid[0], width=2), end=" \t")
+                    print("{:{width}}".format(valid[1], width=2), end=" \t")
                     for i in range(len(symbols)):
-                        if i < 2:
-                            print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
-                        else:
-                            print_symbol(symbols[i], 0, end="\t" if i < 3 else "\n")
+                        #if i < 4:
+                        #    print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
+                        #else:
+                        print_symbol(symbols[i], 0, end="\t" if i < 7 else "\n")
 
                 # Displays the log of LTSSM state transitions
                 elif FSM_LOG:

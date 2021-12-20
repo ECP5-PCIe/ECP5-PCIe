@@ -122,6 +122,12 @@ if __name__ == "__main__":
         ack_scheduled_last = 0
         for i in range(100 * 1000 * 24):
             state = State((yield pcie.phy_d.ltssm.debug_state)).name
+            
+            rx_d_data = yield pcie.phy_d.descrambled_lane.rx_symbol
+            tx_d_data = yield pcie.phy_d.descrambled_lane.tx_symbol
+
+            rx_d_data = [(rx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
+            tx_d_data = [(tx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
 
             retry_buffer_occupation = yield dll_status.retry_buffer_occupation
             receive_buffer_occupation = yield dll_status.receive_buffer_occupation
@@ -137,6 +143,18 @@ if __name__ == "__main__":
             ack_received_id = yield pcie.phy_u.dll.received_ack_nak_id
             
             print(i, end="\r")
+
+            if Ctrl.SDP in rx_d_data:
+                print(i, "DLLP received")
+
+            if Ctrl.SDP in tx_d_data:
+                print(i, "DLLP sent")
+
+            if Ctrl.STP in rx_d_data:
+                print(i, "TLP received")
+
+            if Ctrl.STP in tx_d_data:
+                print(i, "TLP sent")
 
             if last_retry_buffer_occupation != retry_buffer_occupation:
                 print(i, "retry_buffer_occupation:", retry_buffer_occupation)
