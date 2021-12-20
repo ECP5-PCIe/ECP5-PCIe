@@ -41,13 +41,15 @@ class SERDESTestbench(Elaboratable):
 
         # Received symbols are aligned and processed by the PCIePhyRX
         # The PCIePhyTX sends symbols to the SERDES
-        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:2 gearing
+        m.submodules.serdes = serdes = LatticeECP5PCIeSERDESx4(speed_5GTps=True) # Declare SERDES module with 1:2 gearing
         m.submodules.aligner = aligner = DomainRenamer("rx")(PCIeSERDESAligner(serdes.lane)) # Aligner for aligning COM symbols
         m.submodules.phy = phy = PCIePhy(aligner)
         lane = phy.descrambled_lane
         phy_rx = phy.rx
         phy_tx = phy.tx
         ltssm = phy.ltssm
+
+        m.d.comb += lane.speed.eq(LinkSpeed.S2_5)
 
         #m.submodules.scrambler = lane = PCIeScrambler(aligner) # Aligner for aligning COM symbols
         #lane = serdes.lane # Aligner for aligning COM symbols
@@ -202,7 +204,9 @@ class SERDESTestbench(Elaboratable):
 
             # Real time FF sync
             realtime_rx = Signal(64)
-            m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
+            #m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
+            with m.If(serdes.lane.rx_symbol[0:9] == Ctrl.STP):
+                m.d.rx += realtime_rx.eq(realtime_rx + 1)
 
             #errors = Signal(64)
             #with m.If():

@@ -61,7 +61,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
         self.rx_ts_count = Signal(range(16 + 1))
         self.tx_ts_count = Signal(range(1024 + 1))
         self.extra_signals = Signal(8) # Extra signals, assigned in each state
-        self.clocks_per_ms = 62500
+        self.clocks_per_ms = 125000
         self.simulate = False # Set to true to make it go faster, for example only count to 64 instead of 1024 TS in Polling.Active
         self.timer = Signal(range(64 * self.clocks_per_ms + 1))
 
@@ -150,10 +150,14 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
             # Declare a sufficiently large timer with the reset value being the time
 
             # Count down until t=0 or or_conds is true, then jump to the next state
-            with m.If(self.lane.speed == LinkSpeed.S2_5):
-                m.d.rx += timer.eq(timer + 2)
-            with m.Else():
-                m.d.rx += timer.eq(timer + 1)
+            if lane.use_speed:
+                with m.If(self.lane.speed == LinkSpeed.S2_5):
+                    m.d.rx += timer.eq(timer + 2)
+                with m.Else():
+                    m.d.rx += timer.eq(timer + 1)
+                    
+            else:
+                    m.d.rx += timer.eq(timer + 1)
 
             with m.If((timer == time_in_ms * clocks_per_ms) | or_conds):
                 m.d.rx += timer.eq(0)
@@ -184,7 +188,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
                 # After 12 milliseconds are over or a signal is present on the receive side, go to Detect.Active
                 # And wait a few cycles
-                timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done & lane.rx_present) & (timer > 20)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
+                timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done & lane.rx_present) & (timer > 40)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
 
 
             with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
@@ -635,9 +639,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     m.d.rx += rx_idl_count.eq(0)
                 
                 # After 2 ms go back to the beginning of Recovery if idle_to_rlock_transitioned is less than 255, otherwise to Detect.
-                timer = Signal(range(2 * clocks_per_ms + 1), reset = 2 * clocks_per_ms)
-                m.d.rx += timer.eq(timer - 1)
-                with m.If(timer == 0):
+                rtimer = Signal(range(2 * clocks_per_ms + 1), reset = 2 * clocks_per_ms)
+                m.d.rx += rtimer.eq(rtimer - Mux(self.lane.speed == LinkSpeed.S2_5, 2, 1))
+                with m.If(rtimer == 0):
                     m.d.rx += tx.idle.eq(0)
                     with m.If(status.idle_to_rlock_transitioned < 0xFF):
                         reset_ts_count_and_jump(State.Recovery_RcvrLock)
@@ -670,7 +674,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
                     with m.If(error_count > 50):
                         reset_ts_count_and_jump(State.Detect)
 
-                with m.Else():
+                with m.Elif(error_count != 0):
                     m.d.rx += error_count.eq(error_count - 1)
 
 

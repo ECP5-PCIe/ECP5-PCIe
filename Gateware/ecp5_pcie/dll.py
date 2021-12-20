@@ -39,7 +39,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
     speed : Signal()
         Speed, from LinkSpeed enum from serdes.py
     """
-    def __init__(self, ltssm : PCIeLTSSM, tx : PCIeDLLPTransmitter, rx : PCIeDLLPReceiver, clk_freq : int):
+    def __init__(self, ltssm : PCIeLTSSM, tx : PCIeDLLPTransmitter, rx : PCIeDLLPReceiver, clk_freq : int, use_speed : bool):
         self.up = Signal()
         self.ltssm = ltssm
         self.tx = tx
@@ -48,6 +48,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         self.credits_rx = Record(dll_layout)
         self.clk_freq = clk_freq
         self.speed = Signal()
+        self.use_speed = use_speed
 
         self.status = Record(dll_status)
 
@@ -173,14 +174,14 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 m.d.rx += self.up.eq(1)
 
                 # Send DLLP UpdateFC packets often enough, assumes 125 MHz clock, transmits every 25 µs if there is no other ongoing transmission
-                clk = self.clk_freq
+                clk = 125000000
                 min_delay = 25E-6
                 update_timer = Signal(range(int(min_delay * clk + 1)))
 
                 m.d.rx += update_timer.eq(update_timer + 1)
                 m.d.rx += transmit_dllps.eq(0)
 
-                with m.If(((update_timer << self.speed) >= int(min_delay * clk)) & ~sending_tlp):
+                with m.If(((update_timer << (self.speed if self.use_speed else 0)) >= int(min_delay * clk)) & ~sending_tlp):
                     m.d.rx += fc_type.eq(FCType.UpdateFC)
                     m.d.rx += transmit_dllps.eq(1)
                     m.d.rx += done_dllp_transmission.eq(0)

@@ -24,7 +24,7 @@ class PCIePhy(Elaboratable):
         self.dllp_rx = PCIeDLLPReceiver()
         self.dllp_tx = PCIeDLLPTransmitter()
 
-        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency)
+        self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency, use_speed = self.descrambled_lane.use_speed)
 
         self.dll_tlp_tx = PCIeDLLTLPTransmitter(self.dll)
         self.dll_tlp_rx = PCIeDLLTLPReceiver(self.dll)

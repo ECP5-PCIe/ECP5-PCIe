@@ -64,6 +64,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         self.lane = PCIeSERDESInterface(ratio=gearing)
 
         self.lane.frequency = (speed_5GTps + 1) * int(250e6 / gearing)
+        self.lane.use_speed = speed_5GTps
         
         # Ratio, 1:1 means one symbol received per cycle, 1:2 means two symbols received per cycle, halving the output clock frequency.
         self.gearing = gearing
@@ -88,6 +89,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                 self.divide_clk = 0
             if(clkfreq == 200e6):
                 self.divide_clk = 1
+
         self.speed_5GTps = speed_5GTps
 
         class DebugSignals:

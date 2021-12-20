@@ -37,7 +37,6 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         Clock for the transmit FIFO.
     """
     def __init__(self, speed_5GTps=True, DCU=0, CH=0):
-
         self.rx_clk = Signal()  # recovered word clock
 
         self.tx_clk = Signal()  # generated word clock
@@ -61,9 +60,11 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
         self.serdes = self.__serdes # For testing
 
-        self.lane.frequency = int(self.__serdes.lane.frequency / 2)
+        self.lane.frequency     = int(self.__serdes.lane.frequency / 2)
+        self.lane.speed         = self.__serdes.lane.speed
+        self.lane.use_speed     = self.__serdes.lane.use_speed
 
-        self.debug = self.__serdes.debug
+        self.debug              = self.__serdes.debug
 
         self.lane.rx_invert     = self.__serdes.lane.rx_invert
         self.lane.rx_align      = self.__serdes.lane.rx_align
@@ -77,7 +78,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
         self.lane.det_valid     = self.__serdes.lane.det_valid
         self.lane.det_status    = self.__serdes.lane.det_status
         self.slip               = self.__serdes.slip
-        
+
         self.lane.reset_done    = self.__serdes.lane.reset_done
     
     def elaborate(self, platform: Platform) -> Module:
@@ -88,7 +89,7 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         m.submodules += self.lane
 
-        m.d.comb += serdes.lane.speed.eq(self.lane.speed)
+        #m.d.comb += serdes.lane.speed.eq(self.lane.speed)
 
         m.d.comb += serdes.lane.reset.eq(self.lane.reset)
 

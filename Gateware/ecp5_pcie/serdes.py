@@ -165,7 +165,8 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
         self.det_status   = Signal()
 
         self.frequency    = 0
-        self.speed        = Signal()
+        self.speed        = Signal(reset=LinkSpeed.S2_5)
+        self.use_speed    = False
 
         self.reset        = Signal()
         self.reset_done   = Signal()
@@ -203,12 +204,12 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
         self.det_valid    = lane.det_valid
         self.det_status   = lane.det_status
 #
-        #self.frequency    = lane.frequency
-        #self.speed        = lane.speed
+        self.frequency    = lane.frequency
+        self.speed        = lane.speed
+        self.use_speed    = lane.use_speed
 #
         self.reset        = lane.reset
         self.reset_done   = lane.reset_done
-        self.frequency = lane.frequency
 
         self.__lane = lane
 
@@ -288,9 +289,10 @@ class PCIeScrambler(PCIeSERDESInterface):
 #
         self.enable        = Signal()
 #
-        #self.frequency    = lane.frequency
-        #self.speed        = lane.speed
-        #
+        self.frequency    = lane.frequency
+        self.speed        = lane.speed
+        self.use_speed    = lane.use_speed
+        
         self.reset        = lane.reset
         self.reset_done   = lane.reset_done
 
