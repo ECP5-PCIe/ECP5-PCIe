@@ -326,6 +326,9 @@ class PCIeDLLTLPReceiver(Elaboratable):
 
         self.actual_receive_seq = Signal(12, reset=0x000) # Received TLP sequence number
 
+        # Debug
+        self.buffer = TLPBuffer(ratio = ratio, max_tlps = 4)
+
 
         #self.tlp_data = Signal(4 * 8)
 
@@ -336,7 +339,7 @@ class PCIeDLLTLPReceiver(Elaboratable):
         assert ratio == 4
 
         # TODO: Send NAK if buffer is full
-        m.submodules.buffer = buffer = TLPBuffer(ratio = ratio, max_tlps = 4)
+        m.submodules.buffer = buffer = self.buffer
         m.submodules.received_tlp_fifo = received_tlp_fifo = SyncFIFOBuffered(width = 12, depth = buffer.max_tlps)
 
         m.d.comb += self.dll.status.receive_buffer_occupation.eq(buffer.slots_occupied)

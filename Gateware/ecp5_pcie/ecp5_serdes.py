@@ -47,7 +47,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
     divide_clk : Signal
         Divide clock by 2 when true, used for 5 GT/s mode. When enabled with 200 MHz REFCLK the transfer rate is 2.5 GT/s.
     """
-    def __init__(self, gearing, speed_5GTps = False, DCU=0, CH=0, clkfreq = 200e6):
+    def __init__(self, gearing, speed_5GTps = False, DCU=0, CH=0, clkfreq = 200e6, fabric_clk = False):
         assert gearing == 1 or gearing == 2
 
         self.ref_clk = Signal() # reference clock
@@ -92,6 +92,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 
         self.speed_5GTps = speed_5GTps
 
+        self.fabric_clk = fabric_clk
+
         class DebugSignals:
             dco_status = Signal(8)
 
@@ -123,14 +125,18 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         m.d.comb += self.tx_clk.eq(tx_clk_o)
 
 
-        # The clock input, on the Versa board this comes from the ispCLOCK IC
-        m.submodules.extref0 = Instance("EXTREFB",
-            o_REFCLKO=self.ref_clk, # The reference clock is output to ref_clk, it is not really accessible as a signal, since it only exists within the SERDES
-            p_REFCK_PWDNB="0b1",
-            p_REFCK_RTERM="0b1",            # 100 Ohm
-            p_REFCK_DCBIAS_EN="0b0",
-        )
-        m.submodules.extref0.attrs["LOC"] = "EXTREF0" # Locate it 
+        if self.fabric_clk:
+            m.d.comb += self.ref_clk.eq(ClockSignal())
+
+        else:
+            # The clock input, on the Versa board this comes from the ispCLOCK IC
+            m.submodules.extref0 = Instance("EXTREFB",
+                o_REFCLKO=self.ref_clk, # The reference clock is output to ref_clk, it is not really accessible as a signal, since it only exists within the SERDES
+                p_REFCK_PWDNB="0b1",
+                p_REFCK_RTERM="0b1",            # 100 Ohm
+                p_REFCK_DCBIAS_EN="0b0",
+            )
+            m.submodules.extref0.attrs["LOC"] = "EXTREF0" # Locate it
 
 
         if self.gearing == 1: # Different gearing compatibility!

@@ -205,8 +205,9 @@ class SERDESTestbench(Elaboratable):
             # Real time FF sync
             realtime_rx = Signal(64)
             #m.submodules += FFSynchronizer(realtime, realtime_rx, o_domain="rx")
-            with m.If(serdes.lane.rx_symbol[0:9] == Ctrl.STP):
-                m.d.rx += realtime_rx.eq(realtime_rx + 1)
+            #with m.If((serdes.lane.rx_symbol[0:9] == Ctrl.STP) | (serdes.lane.rx_symbol[27:36] == Ctrl.STP)):
+            #    m.d.rx += realtime_rx.eq(realtime_rx + 1)
+            m.d.rx += realtime_rx.eq(phy.dll_tlp_rx.buffer.slots_occupied)
 
             #errors = Signal(64)
             #with m.If():

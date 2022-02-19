@@ -49,7 +49,8 @@ class SERDESTestbench(Elaboratable):
         m.submodules += uart
         
         platform.add_resources([Resource("test", 0, Pins("B19", dir="o"))])
-        m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        #m.d.comb += platform.request("test", 0).o.eq(ClockSignal("rx"))
+        m.d.comb += platform.request("test", 0).o.eq(ecp5_phy.serdes.rx_clk)
         platform.add_resources([Resource("test", 1, Pins("A18", dir="o"))])
         m.d.comb += platform.request("test", 1).o.eq(ClockSignal("rxf"))
 
@@ -62,7 +63,7 @@ class SERDESTestbench(Elaboratable):
                 has |= symbols[i * 9 : i * 9 + 9] == symbol
             
             return has
-                 
+
 
         if NO_DEBUG:
             pass
@@ -78,13 +79,17 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(64)
             
-            with m.If(ltssm.debug_state != State.L0):
-                pass
-                #m.d.rx += time_since_state.eq(0)
-            with m.Else():
-                m.d.rx += time_since_state.eq(time_since_state + start_condition)
-                #with m.If(has_symbol(lane.rx_symbol, Ctrl.STP) & (phy.ltssm.debug_state == State.L0)):
-                #    m.d.rx += time_since_state.eq(time_since_state + 1)
+            if False:
+                with m.If(ltssm.debug_state != State.L0):
+                    pass
+                    #m.d.rx += time_since_state.eq(0)
+                with m.Else():
+                    m.d.rx += time_since_state.eq(time_since_state + start_condition)
+                    #with m.If(has_symbol(lane.rx_symbol, Ctrl.STP) & (phy.ltssm.debug_state == State.L0)):
+                    #    m.d.rx += time_since_state.eq(time_since_state + 1)
+            
+            else:
+                m.d.rx += time_since_state.eq(time_since_state + 1)
             
             sample_data = Signal(range(CAPTURE_DEPTH))
             with m.If(sample_data > 0):
@@ -92,12 +97,17 @@ class SERDESTestbench(Elaboratable):
 
             with m.If(start_condition):
                 m.d.rx += sample_data.eq(CAPTURE_DEPTH - 1)
+            
+
+            real_time = Signal(64)
+
+            m.d.sync += real_time.eq(real_time + 1)
 
 
-            m.submodules += UARTDebugger2(uart, 19, CAPTURE_DEPTH, Cat(
+            m.submodules += UARTDebugger2(uart, 19 + 8, CAPTURE_DEPTH, Cat(
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,# lane.tx_symbol,
-                lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
+                lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state, real_time#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
                 ), "rx")#, enable = (sample_data != 0) | start_condition)#, enable = phy.ltssm.debug_state == State.L0)
 
         return m
@@ -109,7 +119,7 @@ import serial
 from glob import glob
 
 import os
-os.environ["AMARANTH_verbose"] = "Yes"
+#os.environ["AMARANTH_verbose"] = "Yes"
 
 
 if __name__ == "__main__":
@@ -121,7 +131,41 @@ if __name__ == "__main__":
             plat.build(SERDESTestbench(), do_program=False)
 
         if arg == "run":
+            print("Building...")
+
             FPGA.VersaECP55GPlatform().build(SERDESTestbench(), do_program=True, nextpnr_opts="-r")
+
+            with open("build/top.tim") as logfile:
+                log = logfile.readlines()
+
+                utilisation = []
+                log_utilisation = False
+
+                clock_speed = {}
+
+                for line in log:
+                    if log_utilisation and line != "\n":
+                        utilisation.append(line)
+
+                    if line == "Info: Device utilisation:\n":
+                        log_utilisation = True
+                    
+                    if log_utilisation and line == "\n":
+                        log_utilisation = False
+
+                    if line.startswith("Info: Max frequency for clock"):
+                        values = line[:-1].split(":")
+
+                        clock_speed[values[1]] = values[2]
+                
+                for line in utilisation:
+                    print(line[:-1])
+                
+                print()
+
+                for domain in clock_speed:
+                    print(f"{domain}:{clock_speed[domain]}")
+
 
         if arg == "grab":
             port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
@@ -189,13 +233,15 @@ if __name__ == "__main__":
 
 
             # The data is read into a byte array (called word) and then the relevant bits are and'ed out and right shifted.
+            a_1 = None
+            b_1 = None
             for x in range(CAPTURE_DEPTH):
                 # 64t 9R 9R 9T 9T 2v 2-
                 # t = Ticks since state was entered
                 # R = RX symbol
                 # T = TX symbol
                 # v = RX valid
-                chars = port.read(19 * 2 + 1)
+                chars = port.read((19 + 8) * 2 + 1)
                 try:
                     data = int(chars, 16)
                 except:
@@ -205,7 +251,14 @@ if __name__ == "__main__":
                 symbols = [get_bits(data, 64 + 9 * i, 9) for i in range(8)]
                 valid = [get_bits(data, 64 + 9 * 8, 1), get_bits(data, 65 + 9 * 8, 1)]
                 ltssm = get_bits(data, 18 * 8, 8)
+                real_time = get_bits(data, 19 * 8, 64)
+
+                if a_1 == None:
+                    a_1 = time
+                    b_1 = real_time # 100 MHz
+
                 print("{:{width}}".format("{:,}".format(time), width=15), end=" \t")
+                print("{:{width}}".format("{:,}".format(real_time), width=15), end=" \t")
                 for i in range(len(symbols)):
                     #if i < 2:
                     #    print_symbol(symbols[i], 0, end="V\t" if valid[i] else "E\t")
@@ -217,3 +270,5 @@ if __name__ == "__main__":
                 print(end="\t")
                 print(ltssm, end=" \t")
                 print(DTR.CONVERSION_TABLE[get_bits(data, 17 * 8 + 2, 6)], end=" °C\n")
+            
+            print((time - a_1) / (real_time - b_1) * 100, "MHz")

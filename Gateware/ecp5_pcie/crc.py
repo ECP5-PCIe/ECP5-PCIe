@@ -83,7 +83,7 @@ class CRC(Elaboratable):
         self.crc_size   = crc_size
         self.reset      = reset
     
-    def elaborate(self, platform): # TODO: Apparently this generates 512 wires
+    def elaborate(self, platform): # TODO: Apparently this generates 512 wires, look at new amaranth CRC gen when it is upstream
         m = Module()
 
         last = self.output

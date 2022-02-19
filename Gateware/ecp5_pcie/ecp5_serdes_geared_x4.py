@@ -36,10 +36,10 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
     tx_clk_i : Signal
         Clock for the transmit FIFO.
     """
-    def __init__(self, speed_5GTps=True, DCU=0, CH=0):
-        self.rx_clk = Signal()  # recovered word clock
+    def __init__(self, speed_5GTps=True, DCU=0, CH=0, clkfreq = 200e6, fabric_clk = False):
+        self.rx_clk = Signal(name="pcie_clk")  # recovered word clock
 
-        self.tx_clk = Signal()  # generated word clock
+        self.tx_clk = Signal(name="tx_slow_clk")  # generated word clock
 
         # The PCIe lane with all signals necessary to control it
         self.lane = PCIeSERDESInterface(4)
@@ -57,7 +57,8 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         self.speed_5GTps = speed_5GTps
 
-        self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+        #self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH)
+        self.__serdes = LatticeECP5PCIeSERDES(2, speed_5GTps = self.speed_5GTps, DCU=self.DCU, CH=self.CH, clkfreq=clkfreq, fabric_clk=fabric_clk)
         self.serdes = self.__serdes # For testing
 
         self.lane.frequency     = int(self.__serdes.lane.frequency / 2)
