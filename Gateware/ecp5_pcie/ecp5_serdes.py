@@ -80,6 +80,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
         assert CH == 0 or CH == 1
         self.CH = CH
 
+        # TODO: Additional REFCLK for 5 GT/s: 625, 500, 312.5 and 250 MHz, additionally 2.5 GT/s: 156.25 and 125 MHz
         if(speed_5GTps):
             assert clkfreq == 200e6
             self.divide_clk = self.lane.speed
@@ -305,6 +306,7 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
                 # pci_det_en_ch#_c high.
                 m.d.tx += det_timer.eq(15)
                 #m.d.tx += lane.det_valid.eq(0)
+                # TODO: Drive pci_det_en_ch#_c high and try again if this works
                 with m.If(lane.det_enable):
                     m.next = "SET-DETECT-H"
             with m.State("SET-DETECT-H"):

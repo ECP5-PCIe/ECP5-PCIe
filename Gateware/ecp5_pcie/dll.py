@@ -74,11 +74,18 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
         got_np = Signal()
         got_cpl = Signal()
 
+        # One credit equals 4 DW / 16 byte
         m.d.comb += [ # Fix this maybe
-            self.credits_tx.PH.eq(128),
-            self.credits_tx.PD.eq(2048),
-            self.credits_tx.NPH.eq(128),
-            self.credits_tx.NPD.eq(128),
+            #self.credits_tx.PH.eq(32),
+            #self.credits_tx.PD.eq(0xE0),
+            #self.credits_tx.NPH.eq(32),
+            #self.credits_tx.NPD.eq(0x20),
+            #self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
+            #self.credits_tx.CPLD.eq(0), #
+            self.credits_tx.PH.eq(32),
+            self.credits_tx.PD.eq(0xE0),
+            self.credits_tx.NPH.eq(32),
+            self.credits_tx.NPD.eq(0xE0),
             self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
             self.credits_tx.CPLD.eq(0), #
         ]
@@ -173,9 +180,9 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 # This is supposed to be in the above state, but does it matter?
                 m.d.rx += self.up.eq(1)
 
-                # Send DLLP UpdateFC packets often enough, assumes 125 MHz clock, transmits every 25 µs if there is no other ongoing transmission
-                clk = 125000000
-                min_delay = 25E-6
+                # Send DLLP UpdateFC packets often enough, assumes 62.5 MHz clock, transmits every 20 µs if there is no other ongoing transmission
+                clk = 62500000
+                min_delay = 20E-6
                 update_timer = Signal(range(int(min_delay * clk + 1)))
 
                 m.d.rx += update_timer.eq(update_timer + 1)
@@ -192,6 +199,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
                 with m.If(~self.ltssm.status.link.up): # TODO: Why does it cause u-boot on the RP64 to reboot?
                     m.next = State.DL_Inactive
         
+
         # DLLP sending FSM
         # TODO: It transmits the first packet twice. This doesn't break it but it unnecessarily takes up bandwidth.
         send_ack_nak = Signal()

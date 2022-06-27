@@ -5,3 +5,6 @@ sed -i 's/tl_color/"#FFFFE0"/g' tmp.dot
 dot -Tpdf tmp.dot -o Flowchart.pdf
 dot -Tsvg tmp.dot -o Flowchart.svg
 rm tmp.dot
+
+dot -Tpdf LTSSM.dot -o LTSSM.pdf
+dot -Tsvg LTSSM.dot -o LTSSM.svg

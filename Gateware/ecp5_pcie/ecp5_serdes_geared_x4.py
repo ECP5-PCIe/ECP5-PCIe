@@ -16,8 +16,8 @@ class LatticeECP5PCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
     Parameters
     ----------
-    speed5GT : int
-        Which DCU to use
+    speed5GTps : bool
+        Whether to support 5 GT/s
     DCU : int
         Which DCU to use
     CH : int

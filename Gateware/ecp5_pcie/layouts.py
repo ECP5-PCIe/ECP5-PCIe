@@ -37,10 +37,23 @@ ltssm_layout = [
         ("training", 1),
         ("scrambling", 1), # And this too
         ("n_fts", 8),
+        ("rate",  [ # Data rate identifier
+            ("reserved0",   1),
+            ("gen1",        1),
+            ("gen2",        1),
+            ("reserved1",   3),
+            ("autonomous_change",   1),
+            ("speed_change",        1),
+        ]),
+        ("changed_speed_recovery", 1),
+        ("upconfigure_capable", 1),
+        ("successful_speed_negotiation", 1),
+
     ]),
     ("recv_err", 2),
-    ("presence",1),
+    ("presence", 1),
     ("idle_to_rlock_transitioned", 8),
+    ("directed_speed_change", 1),
 ]
 
 dllp_layout = [

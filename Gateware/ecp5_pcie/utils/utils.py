@@ -446,6 +446,110 @@ class UARTDebugger2(Elaboratable):
                 sendByteFSM(ord('Z'), "Collect")
         return m
 
+class UARTDebugger3(Elaboratable):
+    """UART Debugger. It records data in a FIFO at sync rate and once a symbol comes in over the UART it sends the FIFO contents over UART, whatever is in there.
+    Parameters
+    ----------
+    uart : AsyncSerial
+        UART interface from amaranth_stdio
+    words : int
+        Number of bytes
+    depth : int
+        Number of samples stored in FIFO
+    data : Signal, in
+        Data to sample, 8 * words wide
+    data_domain : string
+        Input clock domain
+    enable : Signal, in
+        Enable sampling
+        
+    """
+    def __init__(self, uart, words, depth, data, data_domain="sync", enable=1):
+        assert(len(data) == words * 8)
+        self.uart = uart
+        self.words = words
+        self.depth = depth
+        self.data = data
+        self.data_domain = data_domain
+        self.enable = enable
+
+    def elaborate(self, platform: Platform) -> Module:
+        m = Module()
+
+        uart = self.uart
+        words = self.words
+        depth = self.depth
+        data = self.data
+        
+        word_sel = Signal(range(2 * words), reset = 2 * words - 1)
+        fifo = AsyncFIFOBuffered(width=8 * words, depth=depth, r_domain="sync", w_domain=self.data_domain)
+        m.submodules += fifo
+
+        m.d.comb += fifo.w_data.eq(data)
+
+        def sendByteFSM(byte, nextState):
+            sent = Signal(reset=0)
+            with m.If(uart.tx.rdy):
+                with m.If(sent == 0):
+                    m.d.sync += uart.tx.data.eq(byte)
+                    m.d.sync += uart.tx.ack.eq(1)
+                    m.d.sync += sent.eq(1)
+                with m.If(sent == 1):
+                    m.d.sync += uart.tx.ack.eq(0)
+                    m.d.sync += sent.eq(0)
+                    m.next = nextState
+        
+        with m.FSM():
+            with m.State("Collect"):
+                m.d.comb += fifo.w_en.eq(self.enable)
+
+                m.d.sync += uart.rx.ack.eq(1)
+                with m.If(uart.rx.rdy):
+                    m.d.comb += fifo.w_en.eq(0)
+                    m.d.sync += uart.rx.ack.eq(0)
+                    m.next = "Pre-Transmit"
+
+            with m.State("Pre-Transmit"):
+                sendByteFSM(ord('\n'), "Transmit-1")
+
+            with m.State("Transmit-1"):
+                with m.If(fifo.r_rdy):
+                    m.d.sync += fifo.r_en.eq(1)
+                    m.next = "Transmit-2"
+                with m.Else():
+                    m.next = "Collect"
+
+            with m.State("Transmit-2"):
+                m.d.sync += fifo.r_en.eq(0)
+                m.next = "TransmitByte"
+
+            with m.State("TransmitByte"):
+                sent = Signal(reset=0)
+                with m.If(uart.tx.rdy):
+                    with m.If(sent == 0):
+                        hexNumber = HexNumber(fifo.r_data.word_select(word_sel, 4), Signal(8))
+                        m.submodules += hexNumber
+                        m.d.sync += uart.tx.data.eq(hexNumber.ascii)
+                        m.d.sync += uart.tx.ack.eq(1)
+                        m.d.sync += sent.eq(1)
+                    with m.If(sent == 1):
+                        m.d.sync += uart.tx.ack.eq(0)
+                        m.d.sync += sent.eq(0)
+                        with m.If(word_sel == 0):
+                            m.d.sync += word_sel.eq(word_sel.reset)
+                            m.next = "Separator"
+                        with m.Else():
+                            m.d.sync += word_sel.eq(word_sel - 1)
+                with m.Else():
+                    m.d.sync += uart.tx.ack.eq(0)
+
+            with m.State("Separator"):
+                sendByteFSM(ord('\n'), "Transmit-1")
+
+            with m.State("TransmitEnd"):
+                sendByteFSM(ord('Z'), "Collect")
+        return m
+
 class __UARTDebuggerWrapper: # Not really usable, amaranth part of Gateware needs to be executed to determine signal sizes for this to be usable (and the read function isn't finished).
     """UART Debugger Wrapper. It wraps an UARTDebugger2 for ease of use.
     Parameters

@@ -1,0 +1,121 @@
+TLP:
+
+ROCKPro64 request:
+
+STP
+0	0 # TLP sequence number = 0
+4	0	0	1 # CfgRd0, Length = 1
+0	0	0	f # First DW BE = 0xF
+1	0	0	0 # 01:00:00
+4f	a6	2a	ff
+END
+
+ECP5-PCIe reply:
+
+STP
+0	0
+0	0	0	0
+0	0	10	0
+0	0	0	0
+5C	7B	6D	D2
+END
+
+STP
+0	0
+4A	0	0	2	# CplD, length = 2
+2	0	20	0	# CplID = 0x200, Completion Status = Unsupported Request
+0	0	0	68	# Lower Address = 0x68
+F1	E5	F9	23
+END
+
+STP
+0	0
+4A	0	0	1	# CplD, length = 1
+1	0	10	0	# CplID = 0x100, BCM
+0	0	0	34	# 0x34 Bytes
+A5	C4	5C	F2
+END
+
+STP
+0	0
+4A	0	0	1
+1	0	10	0
+0	0	0	34
+12	78	56	0
+F1	D5	F9	C4
+END
+
+STP
+0	0
+4A	0	0	1
+0	1	10	0
+0	0	0	34
+12	78	56	0
+5E	46	D2	9E
+END
+
+STP
+0	0
+4A	0	0	1
+0	1	10	4
+0	0	0	0
+34	12	78	56
+ED	4A	89	DE
+END
+
+Intel board:
+
+STP
+0	0
+74  0	0   1   # Message request with data payload, terminate at receiver, length 1
+0   e2	0	50  # Requester ID E2, Message Code 50 (set slot power limit)
+0   0	0	0   # Reserved
+0   0	0	0   # Reserved
+a   0	0	0   # This should be copied to device capabilities register, 10 W (1.0 W x 10)
+1e  19	a8	6c
+END
+
+STP             # Probably broken, though saw two of those
+AC  60
+C2  0   0   1   # MRdLk32
+0   0   0   50 
+0   0   0   0
+0   0   0   0
+0   0   0   0
+B3  FD  2A  A7
+END
+
+ROCKPro64:
+
+arm64# dmesg | grep -i pci
+[     1.000006] fregulator0 at simplebus0: vcc3v3_pcie
+[     1.000006] rkpciephy0 at syscon0: RK3399 PCIe PHY
+[     1.000006] rkpcie0 at simplebus0: RK3399 PCIe
+[     1.000006] rkpcie0: link training timeout (link_st 1)
+[     1.000006] rkpcie0: MMIO (64-bit prefetchable): 0xfa000000+0x1e00000@0xfa000000
+[     1.000006] rkpcie0: IO: 0xfbe00000+0x100000@0xfbe00000
+[     1.000006] pci0 at rkpcie0 bus 0
+[     1.000006] pci0: i/o space, memory space enabled, rd/line, rd/mult, wr/inv ok
+[     1.000006] ppb0 at pci0 dev 0 function 0: vendor 1d87 product 0100 (rev. 0x00)
+[     1.000006] ppb0: PCI Express capability version 2 <Root Port of PCI-E Root Complex> x4 @ 2.5GT/s
+[     1.000006] pci1 at ppb0 bus 1
+[     1.000006] pci1: i/o space, memory space enabled, rd/line, wr/inv ok
+
+ROCKPro64 request:
+
+STP
+0   6
+4   0   0   1   # CfgRd0
+0   0   0   F   # BE = 0xF
+1   0   0   C   # 01:00:00 register 3
+77  59  B3  EB
+END
+
+STP
+0   6
+44  0   0   1   # CfgWr0
+0   0   0   F   # BE = 0xF
+1   0   0   4   # 01:00:00 register 1
+0   0   10  0   # 0x00001000
+63  60  A7  4B
+END

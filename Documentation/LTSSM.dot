@@ -1,0 +1,166 @@
+digraph graph_name {
+  
+  graph [
+    charset = "UTF-8";
+    label = "PCIe 2 upstream LTSSM state diagram",
+    labelloc = "t",
+    labeljust = "c",
+    bgcolor = white,
+    fontcolor = black,
+    fontsize = 18,
+    style = "filled",
+    rankdir = TB,
+    margin = 0.2,
+    splines = true,
+    ranksep = 2,
+    nodesep = 2,
+    //layout=fdp,
+    overlap=scalexy,
+  ];
+
+  node [
+    style = "solid, filled",
+    fontsize = 16,
+    fontcolor = black,
+    fontname = "Migu 1M",
+    color = black,
+    fillcolor = "#ffffff",
+    fixedsize = true,
+    height = 0.5,
+    width = 3.2,
+    shape = box,
+  ];
+
+  edge [
+    style = solid,
+    fontsize = 14,
+    fontcolor = black,
+    fontname = "Migu 1M",
+    color = black,
+    labelfloat = true,
+    labeldistance = 2.5,
+    labelangle = 70
+  ];
+
+  subgraph cluster1 {
+    label = "Detect";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Detect.Quiet";
+    "Detect.Active";
+  }
+
+  subgraph cluster2 {
+    label = "Polling";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Polling.Active";
+    "Polling.Compliance";
+    "Polling.Configuration";
+    "Polling.Speed";
+  }
+
+  subgraph cluster3 {
+    label = "Configuration";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Configuration.Linkwidth.Start";
+    "Configuration.Linkwidth.Accept";
+    "Configuration.Lanenum.Accept";
+    "Configuration.Lanenum.Wait";
+    "Configuration.Complete";
+    "Configuration.Idle";
+  }
+
+  subgraph cluster4 {
+    label = "Recovery";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Recovery.RcvrLock";
+    "Recovery.Speed";
+    "Recovery.RcvrCfg";
+    "Recovery.Idle";
+  }
+
+  subgraph cluster5 {
+    label = "L0";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "L0";
+  }
+
+  subgraph cluster6 {
+    label = "Disabled";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Disabled";
+  }
+
+  subgraph cluster7 {
+    label = "Loopback";
+    shape = rectangle;
+    rankdir = UD;
+    margin = 10;
+    "Loopback.Entry";
+    "Loopback.Active";
+    "Loopback.Exit";
+  }
+
+  // alignment
+
+  // "A" -> "B" [style=invis];
+
+  // edge define
+
+  // Compliance and Recovery.Idle is not complete
+
+  // Transitions Start
+  "Detect.Quiet" -> "Detect.Active" [xlabel = "12 ms Timeout"];
+  "Detect.Active" -> "Detect.Quiet" [xlabel = "No receiver detected"];
+  "Detect.Active" -> "Polling.Active" [xlabel = "Receivers on all unconfigured lanes detected"];
+  "Polling.Active" -> "Polling.Compliance" [xlabel = "Enter compliance bit = 1"];
+  "Polling.Active" -> "Polling.Configuration" [xlabel = "1024 TS1 TX\n& ((TS1 PAD & (Compliance Receive bit | Loopback bit))\n| TS2 PAD)"];
+  "Polling.Configuration" -> "Detect.Quiet" [xlabel = "48 ms Timeout"];
+  "Polling.Configuration" -> "Configuration.Linkwidth.Start" [xlabel = "8 TS2 PAD RX & 16 TS2 PAD TX after 1 TS2 PAD RX"];
+  "Configuration.Linkwidth.Start" -> "Disabled" [xlabel = "If directed"];
+  "Configuration.Linkwidth.Start" -> "Loopback.Entry" [xlabel = "If directed | 2x TS1 with loopback bit"];
+  "Configuration.Linkwidth.Start" -> "Configuration.Linkwidth.Accept" [xlabel = "Consecutive TS1 Link, PAD"];
+  "Configuration.Linkwidth.Start" -> "Detect.Quiet" [xlabel = "24 ms Timeout"];
+  "Configuration.Linkwidth.Accept" -> "Configuration.Lanenum.Wait" [xlabel = "Consecutive TS1 Link, Lane"];
+  "Configuration.Linkwidth.Accept" -> "Detect.Quiet" [xlabel = "2 ms Timeout | TS1 PAD | No link configurable"];
+  "Configuration.Lanenum.Wait" -> "Configuration.Lanenum.Accept" [xlabel = "Consecutive TS1 Link, Lane changed | Consecutive TS2"];
+  "Configuration.Lanenum.Wait" -> "Detect.Quiet" [xlabel = "2 ms Timeout | TS1 PAD"];
+  "Configuration.Lanenum.Accept" -> "Configuration.Complete" [xlabel = "Consecutive TS2, Link match, Lane match"];
+  "Configuration.Lanenum.Accept" -> "Configuration.Lanenum.Wait" [xlabel = "Consecutive TS2, Link match, Lane"];
+  "Configuration.Lanenum.Accept" -> "Detect.Quiet" [xlabel = "2 ms Timeout | TS1 PAD"];
+  "Configuration.Complete" -> "Configuration.Idle" [xlabel = "TX TS2, RX TS2, Link match, Lane match, DRI match, 16x TX TS2 after that"];
+  "Configuration.Complete" -> "Detect.Quiet" [xlabel = "2 ms Timeout"];
+  "Configuration.Idle" -> "L0" [xlabel = "8x RX Idle, 16x TX Idle after that"];
+  "Configuration.Idle" -> "Recovery.RcvrLock" [xlabel = "2 ms Timeout, idle_to_rlock_transitioned = 0b (nonexistent in PCIe 3)"];
+  "Configuration.Idle" -> "Detect.Quiet" [xlabel = "2 ms Timeout"];
+  "Recovery.RcvrLock" -> "Recovery.RcvrCfg" [xlabel = "8x TS RX, Link match, Lane match, speed_change = directed_speed_change"];
+  "Recovery.RcvrLock" -> "Recovery.RcvrCfg" [xlabel = "24 ms Timeout & 8x TS RX, Link match, Lane match, speed_change = 1\n& Data rate > 2.5 GT/s | 5 GT/s DRI in TX TS1 & in 8x RX TS2"];
+  "Recovery.RcvrLock" -> "Recovery.Speed" [xlabel = "24 ms Timeout & changed_speed_recovery = 0, current speed > 2.5 GT/s"];
+  "Recovery.RcvrLock" -> "Recovery.Speed" [xlabel = "24 ms Timeout & changed_speed_recovery = 1"];
+  "Recovery.RcvrLock" -> "Configuration.Linkwidth.Start" [xlabel = "24 ms Timeout & TS Link match, Lane match & changed_speed_recovery = 0b \n& ((directed_speed_change = 0b & RX TS speed_change = 0b) | (Current rate = 2.5 GT/s and that is highest advertised rate on TX and RX TS))"];
+  "Recovery.RcvrLock" -> "Detect.Quiet" [xlabel = "24 ms Timeout & No other condition matches"];
+  "Recovery.Speed" -> "Recovery.RcvrLock" [xlabel = "Conditions met"];
+  "Recovery.Speed" -> "Detect.Quiet" [xlabel = "48 ms Timeout"];
+  "Recovery.RcvrCfg" -> "Recovery.Speed" [xlabel = "8x TS RX, speed_change = 1\n& Data rate > 2.5 GT/s | 5 GT/s DRI in TX TS1 & in 8x RX TS2\n& 32 TS2 with speed_change = 1 after RX 1 TS2 with speed_change = 1, no intervening EIEOS"];
+  "Recovery.RcvrCfg" -> "Recovery.Idle" [xlabel = "8x TS RX, Link match, Lane match, identical DRI\n& ((speed_change = 0b in RX | (current DR = 2.5 GT/s and (no 5 GT/s set in 8x RX TS2 ^ ... in 8x TX TS2)))\n| 16 TS2 sent after RX one TS2, no intervening EIEOS)"];
+  "Recovery.RcvrCfg" -> "Configuration.Linkwidth.Start" [xlabel = "8x TS1, Link or Lane not match, 16x TS2 sent after 1x RX and (speed_change = 0b | data rate = 2.5 GT/s, no 5 GT/s set in RX TS1 or in TX TS2)"];
+  "Recovery.RcvrCfg" -> "Recovery.Speed" [xlabel = "changed_speed_recovery = 1b & EIOS or electrical idle & no TS2 since this state"];
+  "Recovery.RcvrCfg" -> "Recovery.Speed" [xlabel = "changed_speed_recovery = 0b & > 2.5 GT/s &  EIOS or electrical idle & no TS2 since this state"];
+  "Recovery.RcvrCfg" -> "Detect.Quiet" [xlabel = "48 ms Timeout"];
+  "Recovery.Idle" -> "L0" [xlabel = "8x RX IDL & 16 TX IDL after that"];
+  "Recovery.Idle" -> "Recovery.RcvrLock" [xlabel = "2 ms Timeout & idle_to_rlock_transitioned < max"];
+  "Recovery.Idle" -> "Detect" [xlabel = "2 ms Timeout & no other condition"];
+  "L0" -> "Recovery.RcvrLock" [xlabel = "(directed_speed_change & DL_Active) | TS received | directed"];
+  // Transitions End
+}

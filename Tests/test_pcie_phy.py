@@ -4,7 +4,7 @@ from amaranth.lib.cdc import FFSynchronizer
 from amaranth_boards import versa_ecp5_5g as FPGA
 from amaranth_stdio.serial import AsyncSerial
 from ecp5_pcie.utils.utils import UARTDebugger2, UARTDebugger
-from ecp5_pcie.ecp5_phy_Gen1_x1 import LatticeECP5PCIePhy   
+from ecp5_pcie.ecp5_phy_x1 import LatticeECP5PCIePhy   
 from ecp5_pcie.utils.parts import DTR
 from ecp5_pcie.ltssm import State
 from ecp5_pcie.serdes import Ctrl
@@ -25,7 +25,7 @@ class SERDESTestbench(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules.phy = ecp5_phy = LatticeECP5PCIePhy()
+        m.submodules.phy = ecp5_phy = LatticeECP5PCIePhy(support_5GTps=False)
         phy = ecp5_phy.phy
 
         ltssm = phy.ltssm
@@ -79,14 +79,14 @@ class SERDESTestbench(Elaboratable):
 
             time_since_state = Signal(64)
             
-            if False:
+            if True:
                 with m.If(ltssm.debug_state != State.L0):
                     pass
                     #m.d.rx += time_since_state.eq(0)
                 with m.Else():
-                    m.d.rx += time_since_state.eq(time_since_state + start_condition)
-                    #with m.If(has_symbol(lane.rx_symbol, Ctrl.STP) & (phy.ltssm.debug_state == State.L0)):
-                    #    m.d.rx += time_since_state.eq(time_since_state + 1)
+                    #m.d.rx += time_since_state.eq(time_since_state + start_condition)
+                    with m.If(has_symbol(lane.rx_symbol, Ctrl.STP) & (phy.ltssm.debug_state == State.L0)):
+                        m.d.rx += time_since_state.eq(time_since_state + 1)
             
             else:
                 m.d.rx += time_since_state.eq(time_since_state + 1)
@@ -108,7 +108,7 @@ class SERDESTestbench(Elaboratable):
                 time_since_state,
                 lane.rx_symbol, lane.tx_symbol,# lane.tx_symbol,
                 lane.rx_aligned, lane.rx_locked & lane.rx_present & lane.rx_aligned, dtr.temperature, phy.ltssm.debug_state, real_time#, phy.dll.tx.started_sending, phy.dll.tx.started_sending#dtr.temperature
-                ), "rx")#, enable = (sample_data != 0) | start_condition)#, enable = phy.ltssm.debug_state == State.L0)
+                ), "rx", enable = (sample_data != 0) | start_condition)#, enable = phy.ltssm.debug_state == State.L0)
 
         return m
 
