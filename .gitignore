@@ -1,9 +1,16 @@
+# ECP5-PCIe stuff
+Result.csv*
+test.bin
+
 # LibreOffice files
 .~lock*
 
 # amaranth simulations
 *.gtkw
 *.vcd
+
+# Collected data and logs
+*.csv
 
 # VSCodium
 *.vscode

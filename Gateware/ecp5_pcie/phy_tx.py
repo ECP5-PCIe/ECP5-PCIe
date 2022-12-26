@@ -37,6 +37,10 @@ class PCIePhyTX(Elaboratable):
 		self.ltssm_L0 = Signal()
 		self.idle_symbol = Signal(9, reset = 1)
 
+		self.state = [
+			self.ts, self.ltssm_L0, self.enable_higher_layers
+		]
+
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
 

@@ -81,8 +81,8 @@ class SERDESTestbench(Elaboratable):
 			rx_packet = Signal()
 			tx_packet = Signal()
 
-			rx_start_condition = (phy.ltssm.debug_state == State.L0) & (lane.rx_symbol[0:9] == Ctrl.STP)
-			tx_start_condition = (phy.ltssm.debug_state == State.L0) & (lane.tx_symbol[0:9] == Ctrl.STP)
+			rx_start_condition = (phy.ltssm.debug_state == State.L0) & ((lane.rx_symbol[0:9] == Ctrl.STP) | ((lane.rx_symbol[0:9] == Ctrl.SDP) & ((lane.rx_symbol[9:18] == 0) | (lane.rx_symbol[9:18] == 0b00010000))))
+			tx_start_condition = (phy.ltssm.debug_state == State.L0) & ((lane.tx_symbol[0:9] == Ctrl.STP) | ((lane.tx_symbol[0:9] == Ctrl.SDP) & ((lane.tx_symbol[9:18] == 0) | (lane.tx_symbol[9:18] == 0b00010000))))
 			
 			with m.If(rx_start_condition):
 				m.d.rx += rx_packet.eq(1)
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
 		if arg == "grab":
 			#port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
-			port = serial.Serial(port="/dev/ttyUSB2", baudrate=1000000)
+			port = serial.Serial(port=glob("/dev/serial/by-id/usb-FTDI_Lattice_ECP5_5G_VERSA_Board_*-if01-port0")[0], baudrate=1000000)
 			port.write(b"\x00")
 			indent = 0
 			last_time = 0

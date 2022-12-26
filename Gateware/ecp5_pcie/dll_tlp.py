@@ -41,6 +41,11 @@ class PCIeDLLTLPTransmitter(Elaboratable):
 		self.debug_crc_output = Signal(32)
 		self.debug_crc_input = Signal(32)
 		self.debug = Signal(8)
+		self.debug_state = Signal(4)
+
+		self.state = [
+			self.debug_state
+		]
 
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
@@ -169,6 +174,7 @@ class PCIeDLLTLPTransmitter(Elaboratable):
 			m.d.comb += sink_ready.eq(1) # TODO: maybe move to rx?
 			with m.FSM(name = "DLL_TLP_tx_FSM", domain = "rx") as fsm:
 				m.d.comb += Cat(self.debug[0:4]).eq(fsm.state)
+				m.d.comb += self.debug_state.eq(fsm.state)
 				m.d.comb += self.debug[4].eq(reset_crc)
 
 				with m.State("Idle"):
@@ -341,8 +347,14 @@ class PCIeDLLTLPReceiver(Elaboratable):
 		self.debug = Signal(8)
 		self.debug2 = Signal(32)
 		self.debug3 = Signal(32)
+		self.debug_state = Signal(8)
 
 		#self.tlp_data = Signal(4 * 8)
+
+		self.state = [
+			self.actual_receive_seq,
+			self.debug_state
+		]
 
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
@@ -414,6 +426,7 @@ class PCIeDLLTLPReceiver(Elaboratable):
 
 		with m.FSM(name = "DLL_TLP_rx_FSM", domain = "rx") as fsm:
 			m.d.comb += Cat(self.debug[0:4]).eq(fsm.state)
+			m.d.comb += Cat(self.debug_state[0:4]).eq(fsm.state)
 
 			with m.State("Idle"):
 				with m.If(self.dllp_sink.symbol[0] == Ctrl.STP):
@@ -492,7 +505,9 @@ class PCIeDLLTLPReceiver(Elaboratable):
 					ack()
 					m.next = "Idle"
 
-		with m.FSM(name = "DLL_TLP_to_TLP_rx_FSM", domain = "rx"):
+		with m.FSM(name = "DLL_TLP_to_TLP_rx_FSM", domain = "rx") as fsm:
+			m.d.comb += Cat(self.debug_state[4:8]).eq(fsm.state)
+
 			with m.State("Wait"):
 				with m.If(~self.buffer.slots_empty):
 					tx_id = 0

@@ -492,7 +492,7 @@ class ConfigurationMemory(Elaboratable):
 		return init
 
 
-class TLPTransmitter(Elaboratable):
+class TLPTransmitter(Elaboratable): # Unused
 	def __init__(self, ratio = 4):
 		self.tlp_source = StreamInterface(8, ratio, name="TLP_Gen_Source")
 		self.ratio = ratio
@@ -524,6 +524,13 @@ class TLP(Elaboratable):
 		self.tlp_source = StreamInterface(8, ratio, name="TLP_Gen_Source")
 		self.ratio = ratio
 		self.debug = Signal(8)
+		self.debug_state = self.debug #Signal(4)
+		self.debug_header = Signal(32)
+
+		self.state = [
+			self.debug_header,
+			self.debug_state
+		]
 
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
@@ -532,8 +539,9 @@ class TLP(Elaboratable):
 
 		assert ratio == 4
 
-		self.header_data = [Signal(8) for i in range(4 * 4)]
+		self.header_data = [Signal(8) for i in range(4 * 4)] # 16 bytes buffer for the header (they're either 3 DW or 4 DW)
 
+		# All the requests it can receive
 		m.submodules.memory_io_request = memory_io_request = MemoryIORequest(self.header_data)
 		m.submodules.configuration_request = configuration_request = ConfigurationRequest(self.header_data)
 		m.submodules.message_request = message_request = MessageRequest(self.header_data)
@@ -542,14 +550,19 @@ class TLP(Elaboratable):
 
 		m.submodules.configuration_memory = configuration_memory = ConfigurationMemory(ConfigurationMemory.make_init(0x1234, 0x5678), configuration_request, new_configuration_request)
 
+		last_valid = Signal()
+		m.d.rx += last_valid.eq(self.tlp_sink.valid[0])
+
 		with m.FSM(name = "TLP_rx_FSM", domain = "rx") as fsm:
 			m.d.comb += Cat(self.debug[0:4]).eq(fsm.state)
 
 			with m.State("Wait"):
 				m.d.rx += self.tlp_sink.ready.eq(1)
-				with m.If(self.tlp_sink.valid[0]):
+				with m.If(~last_valid & self.tlp_sink.valid[0]):
 					for i in range(4):
+						# Assign header_data one by one
 						m.d.rx += self.header_data[i + 0].eq(self.tlp_sink.symbol[i])
+						m.d.rx += self.debug_header.eq(Cat(self.tlp_sink.symbol))
 
 					#with m.If(configuration_request.fmt_type_match()):
 					with m.If((self.tlp_sink.symbol[0] == TLPType.CfgRd0) | (self.tlp_sink.symbol[0] == TLPType.CfgWr0)):
@@ -567,6 +580,7 @@ class TLP(Elaboratable):
 
 				m.d.rx += self.tlp_sink.ready.eq(0)
 				
+				# CfgWr0 has 1 data, process it as it is 4 DW long
 				with m.If(self.header_data[0] == TLPType.CfgWr0):
 					m.next = "CfgRq3"
 				
@@ -581,6 +595,7 @@ class TLP(Elaboratable):
 				m.next = "CfgRq4"
 
 			with m.State("CfgRq4"):
+				# Signal that there is a new configuration request to process
 				m.d.comb += new_configuration_request.eq(1)
 				m.next = "Wait"
 

@@ -171,6 +171,10 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
 		self.reset        = Signal()
 		self.reset_done   = Signal()
 
+		self.state = [
+			self.speed
+		]
+
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
 		return m

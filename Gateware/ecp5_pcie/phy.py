@@ -29,8 +29,8 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 
 		self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency, use_speed = self.descrambled_lane.use_speed)
 
-		self.dll_tlp_tx = PCIeDLLTLPTransmitter(self.dll)
 		self.dll_tlp_rx = PCIeDLLTLPReceiver(self.dll)
+		self.dll_tlp_tx = PCIeDLLTLPTransmitter(self.dll)
 
 		self.debug = Signal(32)
 		self.debug2 = Signal(8)
@@ -41,6 +41,23 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 		
 		else:
 			self.virt_tlp_gen = PCIeVirtualTLPGenerator()
+		
+		# Debug
+		self.submodules = [
+			self.rx,
+			self.tx,
+			self.ltssm,
+			self.dllp_rx,
+			self.dllp_tx,
+			self.dll,
+			self.dll_tlp_rx,
+			self.dll_tlp_tx,
+			self.tlp,
+		]
+
+		self.state = [
+			self.descrambled_lane.enable,
+		]
 
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()

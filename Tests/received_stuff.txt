@@ -119,3 +119,16 @@ STP
 0   0   10  0   # 0x00001000
 63  60  A7  4B
 END
+
+Computer:
+
+STP
+0   0
+74  0   0   1   # Message request with data payload, terminate at receiver, length 1
+0   E4  0   50  # Requester ID 00:1C.4, Message Code 50 (set slot power limit)
+0   0   0   0
+0   0   0   0
+FA  1   0   0
+7C  B1  F6  C9
+END
+
