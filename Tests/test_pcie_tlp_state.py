@@ -98,9 +98,27 @@ class SERDESTestbench(Elaboratable):
 
 		padding = Signal(((len(state_sig) + 7) // 8) * 8 - len(state_sig))
 
+		enable = Signal()
+		ecnt = Signal(3)
+		with m.If(ltssm.debug_state > State.Polling_Active_TS):
+			m.d.rx += enable.eq(1)
+			m.d.rx += ecnt.eq(7)
+		
+		with m.Else():
+			with m.If((ecnt > 0) & (last_state != debug_states)):
+				m.d.rx += ecnt.eq(ecnt - 1)
+			
+			with m.Else():
+				m.d.rx += enable.eq(0)
+		
+		#with m.If(ltssm.debug_state == State.Detect):
+		#	m.d.rx += ecnt.eq(7)
+		
+
+
 		at_start = False # Capture state after transition, if true time is at start of state, otherwise at end of state
 		m.submodules += UARTDebugger3(uart, (len(state_sig) + 7) // 8 + 8, CAPTURE_DEPTH, Cat(rx_time, state_sig if at_start else delayed_sig, padding), "rx",
-			enable = last_state != debug_states)
+			enable = (last_state != debug_states) & enable & (last_state != 0))
 
 		return m
 
@@ -201,6 +219,9 @@ if __name__ == "__main__":
 					# T = TX symbol
 					# v = RX valid
 					chars = port.read((8 + (data_length + 7) // 8) * 2 + 1)
+					if len(chars) < (8 + (data_length + 7) // 8) * 2 + 1:
+						break
+
 					try:
 						data = int(chars, 16)
 
@@ -224,7 +245,7 @@ if __name__ == "__main__":
 			#print((time - a_1) / (real_time - b_1) * 100, "MHz")
 
 		if arg == "analyze":
-			with open("Result.csv", "r") as rfile:
+			with open("Result.csv.old2", "r") as rfile:
 				lines = rfile.readlines()
 				data_index = []
 				data = {}
@@ -272,7 +293,7 @@ if __name__ == "__main__":
 
 				#for i in range(1, data_count - 1):
 					if chain >= State.Detect_Active:
-						print()
+						#print()
 						for i in range(a - chain, a):
 							f = lambda x, o = 0 : get_element(i + o, lambda s: s.endswith(x))
 							def print_state(name, smap):
@@ -284,10 +305,10 @@ if __name__ == "__main__":
 								if state != state_next:
 									#print(f("err_cnt_1", 1) - f("err_cnt_1"), f("err_cnt_2", 1) - f("err_cnt_2"))
 									if type(smap) is list:
-										print(f"{time_in_state:8}\t{sname}: {smap[state]} -> {smap[state_next]}")
+										print(f"{time:16}\t{time_in_state:8}\t{sname}: {smap[state]} -> {smap[state_next]}")
 
 									else:
-										print(f"{time_in_state:8}\t{sname}: {smap(state).name} -> {smap(state_next).name}")
+										print(f"{time:16}\t{time_in_state:8}\t{sname}: {smap(state).name} -> {smap(state_next).name}")
 
 							ltssm_state_last = f("LTSSM.debug_state", -1)
 							ltssm_state = f("LTSSM.debug_state")

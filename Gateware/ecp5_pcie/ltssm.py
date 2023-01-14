@@ -186,6 +186,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
 		# Link Training and Status State Machine, Page 177 in PCIe 1.1, Page 244 in PCIe 3.0
 		with m.FSM(domain="rx"): # Page 249 onwards
+			# Detect.Active after 12 ms or Electrical Idle broken (detected by rx_locked)
 			with m.State(State.Detect_Quiet): # Change to 2.5 GT/s
 				m.d.rx += debug_state.eq(State.Detect_Quiet) # Debug State is there to find out which state the FSM is in
 
@@ -211,6 +212,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				timeout(12 if not simulate else 1, State.Detect_Active, (lane.reset_done & lane.rx_locked) & (timer > 40)) # TODO: Is lane.reset_done right here? # ~rx_present_last & 
 
 
+			# Polling if Receiver detected on all lanes (here one lane)
 			with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
 				m.d.rx += debug_state.eq(State.Detect_Active)
 
@@ -221,16 +223,17 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				m.d.rx += ready_reset.eq(1)
 
 				# It should have detected a receiver in detect, as it waits for RX lock
-				reset_ts_count_and_jump(State.Polling)
+				# reset_ts_count_and_jump(State.Polling)
 
-				#with m.If(lane.det_valid):
-				#    # Wait until the detection result is there and disable lane detection again as soon as it is.
-				#    m.d.rx += lane.det_enable.eq(0)
-				#    #  If a lane was detected, go to Polling.Active otherwise go back to Detect.
-				#    with m.If(lane.det_status): # (Note: currently hardwired to 1 in ecp5_serdes.py)
-				#        reset_ts_count_and_jump(State.Polling)
-				#    with m.Else():
-				#        reset_ts_count_and_jump(State.Detect_Quiet)
+				with m.If(lane.det_valid):
+				    # Wait until the detection result is there and disable lane detection again as soon as it is.
+				    m.d.rx += lane.det_enable.eq(0)
+				    #  If a lane was detected, go to Polling.Active otherwise go back to Detect.
+				    with m.If(lane.det_status):
+				        reset_ts_count_and_jump(State.Polling)
+
+				    with m.Else():
+				        reset_ts_count_and_jump(State.Detect_Quiet)
 			
 
 			with m.State(State.Polling_Active):

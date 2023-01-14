@@ -241,7 +241,7 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
 			with m.State("Pre-2"):
 				m.d.rx += timer.eq(timer + 1)
 
-				with m.If(timer == 63):
+				with m.If(timer == 10):
 					m.next = "P"
 
 			# Const(n, 2) means n = 0: P, n = 1: NP, n = 2: CPL

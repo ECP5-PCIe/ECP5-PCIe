@@ -2,7 +2,6 @@ from amaranth import *
 from amaranth.build import *
 
 class SingleCRC(Elaboratable):
-
 	"""
 	CRC generator for a variable number of data bits, calculates CRC of inputted data bits combinatorially
 
@@ -56,7 +55,6 @@ class SingleCRC(Elaboratable):
 		return m
 
 class CRC(Elaboratable):
-
 	"""
 	CRC generator for a variable number of data bits
 

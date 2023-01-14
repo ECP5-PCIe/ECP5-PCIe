@@ -22,6 +22,11 @@ class DLLPType(IntEnum):
 	UpdateFC_P  = 8,
 	UpdateFC_NP = 9,
 	UpdateFC_Cpl= 10,
+	Unknown     = -1,
+
+	@classmethod
+	def _missing_(cls, value):
+		return cls.Unknown
 
 class PCIeDLLPTransmitter(Elaboratable):
 	"""

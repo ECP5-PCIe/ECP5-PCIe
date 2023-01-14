@@ -39,6 +39,7 @@ def compose(symbols: list[int], symbol_size : int = 9):
 	return result
 
 
+
 class Ctrl(IntEnum):
 	"""
 	Control symbols used in PCIe, Page 194 Table 4-1 in PCIe 3.0
@@ -69,7 +70,6 @@ class LinkSpeed(IntEnum):
 	S2_5 = 1, # Speed of 2.5 GT/s, multiply timers by 2 by left shifting them by one bit
 	S5_0 = 0, # Speed of 5 GT/s
 	
-
 
 
 class PCIeSERDESInterface(Elaboratable): # From Yumewatari

@@ -1,6 +1,7 @@
 # ECP5-PCIe stuff
 Result.csv*
 test.bin
+tlprecord.bin
 
 # LibreOffice files
 .~lock*
