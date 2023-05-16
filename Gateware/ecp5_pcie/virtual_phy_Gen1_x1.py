@@ -12,13 +12,13 @@ class VirtualPCIePhy(Elaboratable):
     def __init__(self, upstream = True):
         self.serdes = VirtualPCIeSERDESx4(speed_5GTps=False) # Declare SERDES module with 1:4 gearing
         self.aligner = DomainRenamer({"rx" : "sync", "tx" : "sync"})(PCIeSERDESAligner(self.serdes.lane)) # Aligner for aligning COM symbols
-        self.phy = DomainRenamer({"rx" : "sync", "tx" : "sync"})(PCIePhy(self.aligner, upstream=upstream, support_5GTps=False, disable_scrambling=True)) # TODO: This is an inconsistency
+        self.phy = DomainRenamer({"rx" : "sync", "tx" : "sync"})(PCIePhy(self.aligner, upstream=upstream, support_5GTps=False, disable_scrambling=False))
         #self.serdes.lane.speed = 1
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        m.submodules.serdes = serdes = self.serdes
+        m.submodules.serdes = self.serdes
         m.submodules.aligner = self.aligner
         m.submodules.phy = self.phy
 

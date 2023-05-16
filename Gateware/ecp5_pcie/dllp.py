@@ -148,14 +148,14 @@ class PCIeDLLPReceiver(Elaboratable):
 		with m.If(self.phy_sink.symbol[0] == Ctrl.SDP):
 			for i in range(self.ratio - 1):
 				m.d.rx += Cat(dllp_bytes[8 * i : 8 * i + 8]).eq(self.phy_sink.symbol[i + 1])
-			m.d.rx += valid.eq(0)
+			#m.d.rx += valid.eq(0)
 
 		with m.Elif(self.phy_sink.symbol[3] == Ctrl.END):
 			for i in range(self.ratio - 1):
 				m.d.rx += Cat(dllp_bytes[8 * i + (self.ratio - 1) * 8: 8 * i + 8 + (self.ratio - 1) * 8]).eq(self.phy_sink.symbol[i])
 			m.d.rx += received.eq(1)
 		
-		m.d.rx += valid.eq(~Cat(crc.output[::-1]) == dllp_bytes[8 * 4:])
+		m.d.comb += valid.eq(~Cat(crc.output[::-1]) == dllp_bytes[8 * 4:])
 
 		with m.If(valid & received):
 			m.d.rx += dllp.valid.eq(1)

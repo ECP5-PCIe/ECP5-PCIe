@@ -67,7 +67,7 @@ class VirtualPCIeSERDESx4(Elaboratable): # Based on Yumewatari
 
         #m.submodules.serdes = serdes = self.__serdes
 
-        m.submodules += self.lane
+        m.submodules.lane = self.lane
         lane = self.lane
 
         #m.domains.rxf = ClockDomain()
@@ -123,14 +123,13 @@ class VirtualPCIeSERDESx4(Elaboratable): # Based on Yumewatari
         #m.d.txf  += Cat(lane.tx_symbol, lane.tx_set_disp, lane.tx_disp, lane.tx_e_idle).eq(Cat(self.lane.tx_symbol, self.lane.tx_set_disp, self.lane.tx_disp, self.lane.tx_e_idle))
 
 
-        self.lane.rx_aligned    = Const(1, 1)
-        self.lane.rx_locked     = Const(1, 1)
-        self.lane.rx_present    = Const(1, 1)
-        
-        self.lane.tx_locked     = Const(1, 1)
-
-        self.lane.det_valid     = Const(1, 1)
-        self.lane.det_status    = Const(1, 1)
+        m.d.comb += self.lane.rx_aligned.eq(Const(1, 1))
+        m.d.comb += self.lane.rx_locked .eq(Const(1, 1))
+        m.d.comb += self.lane.rx_present.eq(Const(1, 1))
+        m.d.comb += self.lane.tx_locked .eq(Const(1, 1))
+        m.d.comb += self.lane.det_valid .eq(Const(1, 1))
+        m.d.comb += self.lane.det_status.eq(Const(1, 1))
+        m.d.comb += self.lane.reset_done.eq(Const(1, 1))
 
 
         return m

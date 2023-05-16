@@ -2,6 +2,7 @@
 Result.csv*
 test.bin
 tlprecord.bin
+*.gz
 
 # LibreOffice files
 .~lock*

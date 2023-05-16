@@ -18,6 +18,12 @@ import json, math
 
 CAPTURE_DEPTH = 1024
 
+# Disable debugging for speed optimization
+NO_DEBUG = False
+
+# Default mode is to record all received symbols
+DEBUG_PACKETS = True
+
 class SERDESTestbench(Elaboratable):
 	def elaborate(self, platform):
 		m = Module()
@@ -38,7 +44,7 @@ class SERDESTestbench(Elaboratable):
 			decode_list.append([len(sig), s_name])
 			state_sig.append(sig)
 
-		with open("test_pcie_tlp_state.json", "w") as file:
+		with open("test_pcie_ltssm_ts.json", "w") as file:
 			json.dump(decode_list, file)
 
 		state_sig = Cat(state_sig)
@@ -82,7 +88,8 @@ class SERDESTestbench(Elaboratable):
 		rx_time = Signal(64)
 		m.d.rx += rx_time.eq(rx_time + 1)
 
-		debug_states = Cat(ltssm.debug_state, phy.dll.debug_state, phy.dll_tlp_rx.debug_state, phy.dll_tlp_tx.debug_state, phy.tlp.debug_state)
+		# debug_states = Cat(ltssm.debug_state, phy.dll.debug_state, phy.dll_tlp_rx.debug_state, phy.dll_tlp_tx.debug_state, phy.tlp.debug_state)
+		debug_states = Cat(phy.rx.ts, phy.tx.ts, ltssm.debug_state, phy.dll.debug_state, phy.dll_tlp_rx.debug_state, phy.dll_tlp_tx.debug_state, phy.tlp.debug_state)
 		
 		last_state = Signal(len(debug_states))
 		m.d.rx += last_state.eq(debug_states)
@@ -107,6 +114,8 @@ class SERDESTestbench(Elaboratable):
 		
 		#with m.If(ltssm.debug_state == State.Detect):
 		#	m.d.rx += ecnt.eq(7)
+
+		m.d.rx += enable.eq(1)
 		
 
 
@@ -202,7 +211,7 @@ if __name__ == "__main__":
 			# The data is read into a byte array (called word) and then the relevant bits are and'ed out and right shifted.
 			a_1 = None
 			b_1 = None
-			with open("Result.csv", "a") as rfile:
+			with open("ResultTS.csv", "a") as rfile:
 				#json.dump({"Format": data_format}, rfile)
 				data_format = [[64, "Time"], *data_format]
 				rfile.write(f'Format, {", ".join([f"{part[1]}: {part[0]}" for part in data_format])}\n')
@@ -239,7 +248,7 @@ if __name__ == "__main__":
 			#print((time - a_1) / (real_time - b_1) * 100, "MHz")
 
 		if arg == "analyze":
-			with open("Result.csv", "r") as rfile:
+			with open("ResultTS.csv", "r") as rfile:
 				lines = rfile.readlines()
 				data_index = []
 				data = {}
@@ -273,6 +282,24 @@ if __name__ == "__main__":
 				for j in range(len(data_index)):
 					if cond(data_index[j][0]):
 						return data[data_index[j][0]][i]
+
+			def get_signal(i, name):
+				result = {}
+				for j in range(len(data_index)):
+					if data_index[j][0].startswith(name):
+						result[data_index[j][0][len(name) + 1:]] = data[data_index[j][0]][i]
+					
+				return result
+
+			def get_signal_raw(i, name):
+				result = 0
+				n = 0
+				for j in range(len(data_index)):
+					if data_index[j][0].startswith(name):
+						result |= data[data_index[j][0]][i] << n
+						n += data_index[j][0]
+					
+				return result
 			
 			# Validate
 			chain = 0
@@ -283,12 +310,15 @@ if __name__ == "__main__":
 				#if f("RX.consecutive"):
 				#	print(f("RX.consecutive"), f("RX.ts.ctrl.disable_link"), f("RX.ts.ctrl.loopback"), f("RX.ts.ctrl.hot_reset"), f("RX.ts.ctrl.disable_scrambling"), f("RX.ts.ctrl.compliance_receive"))
 				chain += 1
-				if ltssm_state == State.Detect:
+				if True:#ltssm_state == State.Detect:
 
 				#for i in range(1, data_count - 1):
-					if chain >= State.Detect_Active:
+					if True:#chain >= State.Detect_Active:
 						#print()
-						for i in range(a - chain, a):
+						#for i in range(a - chain, a):
+						if True:
+							i = a
+							#print(i)
 							f = lambda x, o = 0 : get_element(i + o, lambda s: s.endswith(x))
 							def print_state(name, smap):
 								state = f(name)
@@ -303,6 +333,18 @@ if __name__ == "__main__":
 
 									else:
 										print(f"{time:16}\t{time_in_state:8}\t{sname}: {smap(state).name} -> {smap(state_next).name}")
+							
+							def print_if_diff(name):
+								before = get_signal(i, name)
+								after = get_signal(i + 1, name)
+								if before != after:
+									print(f"{name}: ", end = "")
+									for kn in after:
+										kn2 = ".".join([p[0] + p[-1] for p in kn.split(".")])
+										print(f"{kn2}: {after[kn]}, ", end = "")
+									
+									print()
+									#print(name, after)
 
 							ltssm_state_last = f("LTSSM.debug_state", -1)
 							ltssm_state = f("LTSSM.debug_state")
@@ -323,12 +365,20 @@ if __name__ == "__main__":
 							print_state("TLPReceiver.debug_state", [i for i in range(256)])
 							print_state("TLPTransmitter.debug_state", [i for i in range(16)])
 							print_state("TLP.debug_state", [i for i in range(16)])
+							print_if_diff("LatticeECP5PCIePhy.PCIePhy.PCIePhyTX.ts")
+							print_if_diff("LatticeECP5PCIePhy.PCIePhy.PCIePhyRX.ts")
 							if f("TLP.debug_header") != f("TLP.debug_header", -1):
 								print(hex(f("TLP.debug_header")))
+
+
+							for j in range(len(data_index)):
+								if data_index[j][0].startswith(name):
+									if data[data_index[j][0]][i] != data[data_index[j][0]][i + 1]:
+										print(data_index[j][0], data[data_index[j][0]][i + 1])
 							
 							#if ltssm_state != ltssm_state_next:
 							#	print(f"{time_in_state:8}\tLTSSM: {State(ltssm_state).name} -> {State(ltssm_state_next).name}")
-
+#
 							#if dll_state != dll_state_next:
 							#	print(f"{time_in_state:8}\t  DLL: {DLLState(dll_state).name} -> {DLLState(dll_state_next).name}")
 							

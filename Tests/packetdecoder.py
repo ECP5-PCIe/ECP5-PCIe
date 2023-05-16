@@ -77,6 +77,17 @@ def parse_data(symbols):
 			elif match_all(symbols[i + 1 : i + 15], Ctrl.EIE) and symbols[i + 15] == D(10, 2):
 				result.append([i, {"Type": "EIEOS"}])
 				i = i + 16
+
+			elif match_all(symbols[i + 10 : i + 14], D(10, 2)) or match_all(symbols[i + 10 : i + 14], D(5, 2)):
+				result.append([i, {"Type": "TS", "data": {
+					"Link": symbols[i + 1],
+					"Lane": symbols[i + 2],
+					"N_FTS": symbols[i + 3],
+					"DRI": symbols[i + 4],
+					"Ctrl": symbols[i + 5],
+					"ID": symbols[i + 10] == D(10, 2),
+				}}])
+				i = i + 16
 			
 			else:
 				i += 1

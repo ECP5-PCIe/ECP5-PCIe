@@ -24,11 +24,11 @@ NO_DEBUG = False
 TS_TEST = False
 
 # Record a State
-STATE_TEST = True
+STATE_TEST = False
 TESTING_STATE = State.L0
 
 # Record LTSSM state transitions
-FSM_LOG = False
+FSM_LOG = True
 
 # Default mode is to record all received symbols
 

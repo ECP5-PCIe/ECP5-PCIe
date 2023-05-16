@@ -183,6 +183,8 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
 			return timer
 
+		m.d.rx += tx.ts.n_fts.eq(0xFF)
+
 
 		# Link Training and Status State Machine, Page 177 in PCIe 1.1, Page 244 in PCIe 3.0
 		with m.FSM(domain="rx"): # Page 249 onwards
@@ -192,10 +194,12 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 
 				# The Link is now down and the TX SERDES is put into electrical idle
 				m.d.rx += status.link.up.eq(0)
-				m.d.rx += tx.eidle.eq(0b11)
+				#m.d.rx += tx.eidle.eq(0b11)
+				m.d.rx += lane.tx_e_idle.eq(0b1111)
 				m.d.rx += rx.ready.eq(0)
 				m.d.rx += tx.ready.eq(0)
 				m.d.rx += tx.idle.eq(0)
+				m.d.rx += lane.det_enable.eq(0)
 
 				# Enable scrambling
 				m.d.rx += scrambling.eq(1)
@@ -215,25 +219,31 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 			# Polling if Receiver detected on all lanes (here one lane)
 			with m.State(State.Detect_Active): # Revise spec section 4.2.6.1.2 for the case of multiple lanes
 				m.d.rx += debug_state.eq(State.Detect_Active)
+				timeout(12, State.Detect)
 
 				# Enable lane detection
 				m.d.rx += lane.det_enable.eq(1)
-				m.d.rx += tx.eidle.eq(0)
 
 				m.d.rx += ready_reset.eq(1)
 
 				# It should have detected a receiver in detect, as it waits for RX lock
 				# reset_ts_count_and_jump(State.Polling)
+				# reset_ts_count_and_jump(State.Polling)
+
+				with m.If(timer > 20):
+					m.d.rx += lane.tx_e_idle.eq(0b0000)
 
 				with m.If(lane.det_valid):
-				    # Wait until the detection result is there and disable lane detection again as soon as it is.
-				    m.d.rx += lane.det_enable.eq(0)
-				    #  If a lane was detected, go to Polling.Active otherwise go back to Detect.
-				    with m.If(lane.det_status):
-				        reset_ts_count_and_jump(State.Polling)
-
-				    with m.Else():
-				        reset_ts_count_and_jump(State.Detect_Quiet)
+					# Wait until the detection result is there and disable lane detection again as soon as it is.
+					m.d.rx += lane.det_enable.eq(0)
+					#  If a lane was detected, go to Polling.Active otherwise go back to Detect.
+					reset_ts_count_and_jump(State.Polling)
+					# Lane detection still doesn't work
+					#with m.If(lane.det_status):
+					#    reset_ts_count_and_jump(State.Polling)
+#
+					#with m.Else():
+					#    reset_ts_count_and_jump(State.Detect_Quiet)
 			
 
 			with m.State(State.Polling_Active):
@@ -320,9 +330,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 					& ~rx.ts.link.valid & ~rx.ts.lane.valid):
 						with m.If(rx_ts_count < 8):
 							m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
-					# and if an invalid one comes, reset the RX TS counter.
-					with m.Elif(rx_ts_count < 8):
-						m.d.rx += rx_ts_count.eq(0)             
+					## and if an invalid one comes, reset the RX TS counter.
+					#with m.Elif(rx_ts_count < 8):
+					#	m.d.rx += rx_ts_count.eq(0)             
 
 				with m.If((tx_ts_count >= 16) & (rx_ts_count >= 8)):
 					reset_ts_count_and_jump(State.Configuration)
@@ -383,14 +393,14 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				m.d.rx += debug_state.eq(State.Configuration_Linkwidth_Accept)
 
 				# After (2 milliseconds of invalid stuff being received) or (an invalid TS being received), go back.
-				timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid))
+				timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid & rx.consecutive))
 
 				if upstream:
 					# Accept TS1 Link=Upstream-Link Lane=Upstream-Lane
 					# with the lane number 0, in a x4 implementation it should be lane-dependent.
 					# Report back that the received lane is valid.
 					#with m.If(rx.ts_received):
-					with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & rx.ts.link.valid & rx.ts.lane.valid):
+					with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & rx.ts.link.valid & rx.ts.lane.valid & rx.consecutive):
 						with m.If(rx.ts.lane.number == 0):
 							m.d.rx += tx.ts.lane.valid.eq(1)
 							m.d.rx += tx.ts.lane.number.eq(rx.ts.lane.number)
@@ -414,7 +424,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				m.d.rx += debug_state.eq(State.Configuration_Lanenum_Wait)
 					
 				# After 2 milliseconds of invalid stuff being received or an invalid TS being received, go back.
-				timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid))
+				timeout(2, State.Detect, (rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid & rx.consecutive))
 
 				if upstream:
 					# Accept TS1 Link=Upstream-Link Lane=Upstream-Lane
@@ -455,9 +465,13 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				if upstream:
 					# Accept consecutive TS2 Link=Upstream-Link Lane=Upstream-Lane
 					with m.If(rx.ts.valid & (rx.ts.ts_id == 1) & rx.ts.link.valid & rx.ts.lane.valid):
-						with m.If((rx.ts.link.number == tx.ts.link.number) & (rx.ts.lane.number == tx.ts.lane.number)):
-							with m.If(rx.consecutive):
+						with m.If(rx.consecutive):
+							with m.If((rx.ts.link.number == tx.ts.link.number) & (rx.ts.lane.number == tx.ts.lane.number)):
 								reset_ts_count_and_jump(State.Configuration_Complete)
+							
+							with m.Elif((rx.ts.link.number == tx.ts.link.number) & (rx.ts.lane.number != tx.ts.lane.number)): # TODO: Correct?
+								m.d.rx += tx.ts.lane.number.eq(rx.ts.lane.number)
+								reset_ts_count_and_jump(State.Configuration_Lanenum_Wait)
 
 					# But no two consecutive TS1s with invalid link and lane.
 					with m.If(rx.ts.valid & (rx.ts.ts_id == 0) & ~rx.ts.link.valid & ~rx.ts.lane.valid):
@@ -479,9 +493,9 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				# And reset the TS counts.
 				m.d.rx += [
 					tx.ts.ts_id.eq(1),
-					tx.ts.n_fts.eq(0x2A),
+					tx.ts.n_fts.eq(0xFF),
 					tx_ts_count.eq(0),
-					tx_ts_count.eq(0),
+					rx_ts_count.eq(0),
 				]
 				
 				reset_ts_count_and_jump(State.Configuration_Complete_TS)
@@ -497,8 +511,10 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 				with m.If(tx.start_send_ts):
 					with m.If(rx_ts_count == 0):
 						m.d.rx += tx_ts_count.eq(0)
+
 					with m.Elif(tx_ts_count < 16):
 						m.d.rx += tx_ts_count.eq(tx_ts_count + 1)
+
 				with m.If(rx.ts_received):
 					# Accept TS2 Link=Upstream-Link Lane=Upstream-Lane
 					# and wait for 8 consecutive ones, otherwise reset the counter
@@ -507,6 +523,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 						(rx.ts.lane.number == tx.ts.lane.number) & rx.consecutive):
 						with m.If(rx_ts_count < 8):
 							m.d.rx += rx_ts_count.eq(rx_ts_count + 1)
+
 					with m.Else():
 						m.d.rx += rx_ts_count.eq(0)
 
@@ -517,7 +534,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 						m.d.rx += status.link.changed_speed_recovery.eq(0)
 						m.d.rx += status.link.upconfigure_capable.eq(rx.ts.rate.autonomous_change & tx.ts.rate.autonomous_change)
 						m.d.rx += tx.idle.eq(1)
-						m.d.rx += tx.idle_symbol.eq(1)
+						m.d.rx += tx.idle_symbol.eq(0)
 						reset_ts_count_and_jump(State.Configuration_Idle)
 
 
@@ -558,7 +575,7 @@ class PCIeLTSSM(Elaboratable): # Based on Yumewatary phy.py
 					m.d.rx += rx_idl_count.eq(0)
 
 					if upstream:
-						m.d.rx += tx.idle_symbol.eq(1)
+						m.d.rx += tx.idle_symbol.eq(0)
 
 				# And the link should be configured!
 				#m.d.rx += status.link.up.eq(1)

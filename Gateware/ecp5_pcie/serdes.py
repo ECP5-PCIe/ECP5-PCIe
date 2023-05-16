@@ -171,9 +171,22 @@ class PCIeSERDESInterface(Elaboratable): # From Yumewatari
 		self.reset        = Signal()
 		self.reset_done   = Signal()
 
+		# Idle signal for when the idle symbol or SKP ordered sets are received
+		self.idle = (self.rx_symbol == 0) | (self.rx_symbol == compose([Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP]))
+
 		self.state = [
 			self.speed
 		]
+
+	def has_symbol(self, symbol):
+		"""
+		Whether the symbol is in the current RX data
+		"""
+		has = False
+		for i in range(self.ratio):
+			has |= self.rx_symbol[i * 9 : i * 9 + 9] == symbol
+			
+		return has
 
 	def elaborate(self, platform: Platform) -> Module:
 		m = Module()
@@ -203,6 +216,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 		#self.tx_set_disp  = Signal(lane.ratio)
 		#self.tx_disp      = Signal(lane.ratio)
 		#self.tx_e_idle    = Signal(lane.ratio)
+		#self.tx_e_idle   = lane.tx_e_idle
 #
 		self.det_enable   = lane.det_enable
 		self.det_valid    = lane.det_valid
@@ -225,7 +239,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 		# Do TX CDC
 		# FFSynchronizer
 		if False:
-			m.submodules += FFSynchronizer(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle), Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle), o_domain="tx", stages=4)
+			m.submodules.tx_ff = FFSynchronizer(Cat(self.tx_symbol, self.tx_set_disp, self.tx_disp, self.tx_e_idle), Cat(self.__lane.tx_symbol, self.__lane.tx_set_disp, self.__lane.tx_disp, self.__lane.tx_e_idle), o_domain="tx", stages=4)
 		
 		# No CDC
 		# TODO: Check if this actually works
@@ -247,7 +261,7 @@ class PCIeSERDESAligner(PCIeSERDESInterface):
 
 
 		self.slip = SymbolSlip(symbol_size=10, word_size=self.__lane.ratio, comma=Cat(Const(Ctrl.COM, 9), 1))
-		m.submodules += self.slip
+		m.submodules.slip = self.slip
 
 		m.d.comb += self.debug.eq(self.slip.debug)
 
@@ -290,6 +304,7 @@ class PCIeScrambler(PCIeSERDESInterface):
 		#self.tx_set_disp  = Signal(lane.ratio)
 		#self.tx_disp      = Signal(lane.ratio)
 		#self.tx_e_idle    = Signal(lane.ratio)
+		self.tx_e_idle   = lane.tx_e_idle
 #
 		self.det_enable   = lane.det_enable
 		self.det_valid    = lane.det_valid
@@ -372,7 +387,7 @@ class PCIeScrambler(PCIeSERDESInterface):
 
 		m.d.rx += self.__lane.tx_set_disp.eq(self.tx_set_disp)
 		m.d.rx += self.__lane.tx_disp    .eq(self.tx_disp)
-		m.d.rx += self.__lane.tx_e_idle  .eq(self.tx_e_idle)
+		#m.d.rx += self.__lane.tx_e_idle  .eq(self.tx_e_idle)
 
 		#m.d.comb += self.__lane.reset.eq(self.reset)
 		#m.d.comb += self.reset_done.eq(self.__lane.reset_done)

@@ -19,14 +19,12 @@ class PCIePhyRX(Elaboratable):
 		Last valid link # received
 	vlane : Signal
 		Last valid lane # received
-	fifo_depth : int
-		How deep the FIFO to store received data is
 	ready : Signal()
 		Asserted by LTSSM to enable data reception
 	fifo : SyncFIFOBuffered()
 		Received data gets stored in here
 	"""
-	def __init__(self, raw_lane : PCIeSERDESInterface, decoded_lane : PCIeScrambler, fifo_depth = 256):
+	def __init__(self, raw_lane : PCIeSERDESInterface, decoded_lane : PCIeScrambler):
 		assert raw_lane.ratio == 4
 		self.raw_lane = raw_lane
 		self.decoded_lane = decoded_lane

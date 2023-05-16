@@ -93,10 +93,16 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
 			#self.credits_tx.NPD.eq(0x20),
 			#self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
 			#self.credits_tx.CPLD.eq(0), #
-			self.credits_tx.PH.eq(32),
-			self.credits_tx.PD.eq(0xE0),
-			self.credits_tx.NPH.eq(32),
-			self.credits_tx.NPD.eq(0xE0),
+			#self.credits_tx.PH.eq(32),
+			#self.credits_tx.PD.eq(0xE0),
+			#self.credits_tx.NPH.eq(32),
+			#self.credits_tx.NPD.eq(0xE0),
+			#self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
+			#self.credits_tx.CPLD.eq(0), #
+			self.credits_tx.PH.eq(2),
+			self.credits_tx.PD.eq(0x20),
+			self.credits_tx.NPH.eq(2),
+			self.credits_tx.NPD.eq(0x02),
 			self.credits_tx.CPLH.eq(0), # Must advertise infinite as root complex or endpoint
 			self.credits_tx.CPLD.eq(0), #
 		]
@@ -277,7 +283,16 @@ class PCIeDLL(Elaboratable): # Based on Yumewatary phy.py
 
 				with m.If(self.tx.started_sending):
 					m.d.rx += self.tx.send.eq(0)
-					m.next = "CPL"
+					with m.If(fc_type == FCType.UpdateFC): # Other devices don't seem to transmit CPL in UpdateFC (TODO)
+						# This is kind of a hack to ensure that it doesn't toggle to 1 when it isn't supposed to transmit (but still finishing a transmission)
+						m.d.rx += done_dllp_transmission.eq(transmit_dllps)
+						with m.If(transmit_dllps):
+							m.next = "Pre-1"
+						with m.Else():
+							m.next = "Idle"
+					
+					with m.Else():
+						m.next = "CPL"
 
 			with m.State("CPL"):
 				#with m.If(~transmit_dllps):

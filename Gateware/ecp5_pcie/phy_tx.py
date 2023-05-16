@@ -16,8 +16,6 @@ class PCIePhyTX(Elaboratable):
 		PCIe lane
 	ts : Record(ts_layout)
 		Data to send
-	fifo_depth : int TODO: remove this, also in RX
-		How deep the FIFO to store data to transmit is
 	ready : Signal()
 		Asserted by LTSSM to enable data transmission
 	in_symbols : Signal(18)
@@ -25,7 +23,7 @@ class PCIePhyTX(Elaboratable):
 	fifo : SyncFIFOBuffered()
 		Data to transmit goes in here
 	"""
-	def __init__(self, lane : PCIeSERDESInterface, fifo_depth = 256):
+	def __init__(self, lane : PCIeSERDESInterface):
 		assert lane.ratio == 4
 		self.lane = lane
 		self.ts = Record(ts_layout)
@@ -120,7 +118,7 @@ class PCIePhyTX(Elaboratable):
 
 				with m.Elif(ts.valid):
 					m.d.rx += self.sending_ts.eq(1)
-					m.d.comb += lane.tx_e_idle.eq(0b0)
+					#m.d.comb += lane.tx_e_idle.eq(0b0)
 					m.next = "TSn-DATA"
 					m.d.rx += [
 						self.start_send_ts.eq(1)
@@ -145,8 +143,8 @@ class PCIePhyTX(Elaboratable):
 					send(self.idle_symbol, self.idle_symbol, self.idle_symbol, self.idle_symbol)
 
 				# Otherwise go to electrical idle, if told so
-				with m.Else():
-					m.d.comb += lane.tx_e_idle.eq(self.eidle)
+				#with m.Else():
+				#	m.d.comb += lane.tx_e_idle.eq(self.eidle)
 
 			ts_symbol = Mux(ts.ts_id, D(5, 2), D(10, 2))
 

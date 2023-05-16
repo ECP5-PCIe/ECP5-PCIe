@@ -290,14 +290,21 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 		pcie_done_s    = Signal()
 		pcie_con       = Signal() # PCIe lane connected
 		pcie_con_s     = Signal()
+		det_enable     = Signal()
+		det_valid      = Signal()
+		det_valid_s    = Signal()
 
 		det_timer = Signal(range(16)) # Detection Timer
 
 		# Clock domain crossing for PCIe detection signals
 		m.submodules += [
 			FFSynchronizer(pcie_done, pcie_done_s, o_domain="tx"),
-			FFSynchronizer(pcie_con, pcie_con_s, o_domain="tx")
+			FFSynchronizer(pcie_con, pcie_con_s, o_domain="tx"),
+			FFSynchronizer(lane.det_enable, det_enable, o_domain="tx"),
+			FFSynchronizer(det_valid, det_valid_s, o_domain="rx"),
 		]
+
+		m.d.rx += lane.det_valid.eq(det_valid_s & lane.det_enable)
 
 		with m.If(det_timer > 0):
 			m.d.tx += det_timer.eq(det_timer - 1) # Check if this runs at 125 / 250 MHz in Detect state or whether it is unlocked
@@ -315,13 +322,14 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 		# Check pcie_con_s, pcie_con_s == 1 means a receiver has been detected
 		# tx_elec_idle -> 0
 		# Here: Wait 120 ns and drive tx_elec_idle to 0
+		# det_valid only stays high as long as det_enable is high
 
 		# See also https://github.com/whitequark/Yumewatari/blob/master/yumewatari/gateware/platform/lattice_ecp5.py
 		det_delay = 30 // self.gearing - 1 # 120 ns
 		with m.FSM(domain = "tx", reset = "START"):
 			with m.State("START"):
-				with m.If(lane.det_enable):
-					m.d.tx += lane.det_valid.eq(0)
+				m.d.tx += det_valid.eq(0)
+				with m.If(det_enable):
 					m.d.tx += tx_elec_idle.eq(1)
 					m.d.tx += det_timer.eq(det_delay) # Check if this is actually 120 ns
 					m.next = "WAIT-IDLE"
@@ -355,8 +363,8 @@ class LatticeECP5PCIeSERDES(Elaboratable): # Based on Yumewatari
 			# Wait for idle exit
 			with m.State("DET-DONE"):
 				with m.If(det_timer == 0):
-					m.d.tx += lane.det_valid.eq(1)
-					with m.If(~lane.det_enable):
+					m.d.tx += det_valid.eq(1)
+					with m.If(~det_enable):
 						m.next = "START"
 
 

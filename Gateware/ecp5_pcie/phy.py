@@ -19,8 +19,8 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 		
 		# PHY
 		self.descrambled_lane = PCIeScrambler(lane)#, Signal())
-		self.rx = PCIePhyRX(lane, self.descrambled_lane, 16)
-		self.tx = PCIePhyTX(self.descrambled_lane, 16)
+		self.rx = PCIePhyRX(lane, self.descrambled_lane)
+		self.tx = PCIePhyTX(self.descrambled_lane)
 		self.ltssm = PCIeLTSSM(self.descrambled_lane, self.tx, self.rx, upstream=upstream, support_5GTps=support_5GTps, disable_scrambling=disable_scrambling) # It doesn't care whether the lane is scrambled or not, since it only uses it for RX detection in Detect
 		
 		# DLL
@@ -29,8 +29,8 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 
 		self.dll = PCIeDLL(self.ltssm, self.dllp_tx, self.dllp_rx, lane.frequency, use_speed = self.descrambled_lane.use_speed)
 
-		self.dll_tlp_rx = PCIeDLLTLPReceiver(self.dll)
-		self.dll_tlp_tx = PCIeDLLTLPTransmitter(self.dll)
+		self.dll_tlp_rx = (ResetInserter(~self.dll.up))(PCIeDLLTLPReceiver(self.dll))
+		self.dll_tlp_tx = (ResetInserter(~self.dll.up))(PCIeDLLTLPTransmitter(self.dll))
 
 		self.debug = Signal(32)
 		self.debug2 = Signal(8)
@@ -40,7 +40,7 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 			self.tlp = TLP()
 		
 		else:
-			self.virt_tlp_gen = PCIeVirtualTLPGenerator()
+			self.tlp = PCIeVirtualTLPGenerator()
 		
 		# Debug
 		self.submodules = [
@@ -85,7 +85,7 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 		if self.upstream:
 			m.submodules.tlp = self.tlp
 		else:
-			m.submodules.virt_tlp_gen = self.virt_tlp_gen
+			m.submodules.tlp = self.tlp
 
 		m.d.comb += self.dll.speed.eq(self.descrambled_lane.speed)
 
@@ -100,7 +100,7 @@ class PCIePhy(Elaboratable): # Phy might not be the right name for this
 			self.dll_tlp_rx.tlp_source.connect(self.tlp.tlp_sink, m.d.comb)
 		
 		else:
-			self.virt_tlp_gen.tlp_source.connect(self.dll_tlp_tx.tlp_sink, m.d.comb)
+			self.tlp.tlp_source.connect(self.dll_tlp_tx.tlp_sink, m.d.comb)
 		
 		m.d.comb += self.debug.eq(Cat(self.dll_tlp_tx.tlp_sink.symbol))
 		m.d.comb += self.debug2.eq(Cat(self.dll_tlp_tx.tlp_sink.valid))

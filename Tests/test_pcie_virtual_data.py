@@ -4,8 +4,11 @@ from amaranth.lib.cdc import FFSynchronizer
 from amaranth.sim import Simulator, Delay, Settle
 from ecp5_pcie.virtual_phy_Gen1_x1 import VirtualPCIePhy
 from ecp5_pcie.ltssm import State
-from ecp5_pcie.serdes import Ctrl, compose
+from ecp5_pcie.serdes import Ctrl, compose, D, PCIeSERDESInterface
+from ecp5_pcie.phy_rx import PCIePhyRX
+import gzip
 
+# Test against real data
 
 class VirtualPCIeTestbench(Elaboratable):
 	def __init__(self):
@@ -14,20 +17,16 @@ class VirtualPCIeTestbench(Elaboratable):
 		self.aligner_u = phy_virtual_u.aligner
 		self.phy_u = phy_virtual_u.phy
 
-		self.phy_virtual_d = phy_virtual_d = VirtualPCIePhy(upstream=False)
-		self.serdes_d = phy_virtual_d.serdes
-		self.aligner_d = phy_virtual_d.aligner
-		self.phy_d = phy_virtual_d.phy
-
 		self.refclkcounter = Signal(32)
-		self.phy_u.ltssm.clocks_per_ms = 128
-		self.phy_d.ltssm.clocks_per_ms = 128
-		self.phy_u.dll_tlp_tx.clocks_per_ms = 128
-		self.phy_d.dll_tlp_tx.clocks_per_ms = 128
-		self.phy_u.ltssm.simulate = True
-		self.phy_d.ltssm.simulate = True
+		if False:
+			self.phy_u.ltssm.clocks_per_ms = 128
+			self.phy_u.dll_tlp_tx.clocks_per_ms = 128
+			self.phy_u.ltssm.simulate = True
 
 		self.send_skp = Signal()
+
+		self.reference_lane = PCIeSERDESInterface(4)
+		self.decoder = DomainRenamer({"rx" : "sync", "tx" : "sync"})(PCIePhyRX(self.reference_lane, self.reference_lane))
 
 	def elaborate(self, platform):
 		m = Module()
@@ -36,11 +35,13 @@ class VirtualPCIeTestbench(Elaboratable):
 		m.d.sync += time.eq(time + 1)
 
 		m.submodules.phy_u = phy_virtual_u = self.phy_virtual_u
-		m.submodules.phy_d = phy_virtual_d = self.phy_virtual_d
+		m.submodules.reference_lane = self.reference_lane 
+		m.submodules.reference_decoder = self.decoder        
+		#m.submodules.phy_d = phy_virtual_d = self.phy_virtual_d
 		#lane = ecp5_phy.aligner
 
-		m.d.comb += self.serdes_u.lane.rx_symbol.eq(self.serdes_d.lane.tx_symbol)
-		m.d.comb += self.serdes_d.lane.rx_symbol.eq(self.serdes_u.lane.tx_symbol)
+		#m.d.comb += self.serdes_u.lane.rx_symbol.eq(self.serdes_d.lane.tx_symbol)
+		#m.d.comb += self.serdes_d.lane.rx_symbol.eq(self.serdes_u.lane.tx_symbol)
 
 		#with m.If(time == 2000):
 		#	m.d.comb += self.serdes_u.lane.rx_symbol.eq(Cat(Const(Ctrl.STP, 9), Const(0, 9), Const(0, 9), Const(4, 9)))
@@ -54,7 +55,7 @@ class VirtualPCIeTestbench(Elaboratable):
 		#	m.d.comb += self.serdes_u.lane.rx_symbol.eq(Cat(Const(0xA6, 9), Const(0x2A, 9), Const(0xFF, 9), Const(Ctrl.END, 9)))
 
 
-		m.d.comb += self.send_skp.eq(self.serdes_d.lane.tx_symbol == compose([Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP]))
+		#m.d.comb += self.send_skp.eq(self.serdes_d.lane.tx_symbol == compose([Ctrl.COM, Ctrl.SKP, Ctrl.SKP, Ctrl.SKP]))
 
 
 		refclkcounter = self.refclkcounter
@@ -118,13 +119,36 @@ if __name__ == "__main__":
 	m = Module()
 	m.submodules.pcie = pcie = VirtualPCIeTestbench()
 
-	dll_status = pcie.phy_d.dll.status
+	dll_status = pcie.phy_u.dll.status
 
 	sim = Simulator(m)
 
 	#sim.add_clock(8e-9, domain="tx")
 	#sim.add_clock(8e-9, domain="rx")
 	sim.add_clock(1e-8, domain="sync") # Everything in sync domain
+
+	def decode_symbol(string):
+		string = string.replace(b"\n", b"")
+		control = 0x100 if string[0] == b"K"[0] else 0x000 # b"K"[0] is equivalent to 75
+		x, y = string.split(b".")
+		x = int(x[1:])
+		y = int(y[:-1])
+		return control | D(x, y)
+
+	drive_data = [] # Symbols received from mainboard
+	reference_data = [] # Symbols received from PCIe card
+
+	# 8b10b trace by Andrew Zonenberg, CC-BY, Gen1x1 network card
+	with gzip.open('Decoded8b10bInitNoTime.csv.gz', 'r') as input_trace:
+		for line in input_trace.readlines()[1:]:
+			parts = line.split(b",")
+			drive_data.append(decode_symbol(parts[0]))
+			#print(parts[1])
+			reference_data.append(decode_symbol(parts[1]) if parts[1] != b"\n" else Ctrl.Error)
+	
+	#ref_data = Signal(36)
+	#m.d.comb += reference_lane.rx_symbol.eq(ref_data)
+	#print(reference_data)
 
 	def process():
 		a = 1
@@ -134,56 +158,62 @@ if __name__ == "__main__":
 		last_tx_seq_num = 0
 		last_rx_seq_num = 0
 		ack_scheduled_last = 0
-		for i in range(100 * 1000 * 24):
-			state = State((yield pcie.phy_d.ltssm.debug_state)).name
+		for i in range(len(drive_data) // 4):
+			yield pcie.serdes_u.lane.rx_symbol.eq(compose(drive_data[i * 4 : i * 4 + 4]))
+			yield pcie.serdes_u.lane.rx_valid.eq(0b1111)
+
+			yield pcie.reference_lane.rx_symbol.eq(compose(reference_data[i * 4 : i * 4 + 4]))
+			yield pcie.reference_lane.rx_valid.eq(0b1111)
+
+			state = State((yield pcie.phy_u.ltssm.debug_state)).name
 			
-			rx_d_data = yield pcie.phy_d.descrambled_lane.rx_symbol
-			tx_d_data = yield pcie.phy_d.descrambled_lane.tx_symbol
-
-			rx_d_data = [(rx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
-			tx_d_data = [(tx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
-
-			retry_buffer_occupation = yield dll_status.retry_buffer_occupation
-			receive_buffer_occupation = yield dll_status.receive_buffer_occupation
-			tx_seq_num = yield dll_status.tx_seq_num
-			rx_seq_num = yield dll_status.rx_seq_num
-
-			ack_scheduled = yield pcie.phy_d.dll.schedule_ack_nak
-			ack_scheduled_ack = yield pcie.phy_d.dll.scheduled_ack
-			ack_scheduled_id = yield pcie.phy_d.dll.scheduled_ack_nak_id
-
-			ack_received = yield pcie.phy_u.dll.received_ack_nak
-			ack_received_ack = yield pcie.phy_u.dll.received_ack
-			ack_received_id = yield pcie.phy_u.dll.received_ack_nak_id
-			
-			print(i, end="\r")
-
-			if Ctrl.SDP in rx_d_data:
-				print(i, "DLLP received")
-
-			if Ctrl.SDP in tx_d_data:
-				print(i, "DLLP sent")
-
-			if Ctrl.STP in rx_d_data:
-				print(i, "TLP received")
-
-			if Ctrl.STP in tx_d_data:
-				print(i, "TLP sent")
-
-			if last_retry_buffer_occupation != retry_buffer_occupation:
-				print(i, "retry_buffer_occupation:", retry_buffer_occupation)
-			
-			if last_receive_buffer_occupation != receive_buffer_occupation:
-				print(i, "receive_buffer_occupation:", receive_buffer_occupation)
-			
-			if last_tx_seq_num != tx_seq_num:
-				print(i, "tx_seq_num:", tx_seq_num)
-			
-			if last_rx_seq_num != rx_seq_num:
-				print(i, "rx_seq_num:", rx_seq_num)
-			
-			if ack_scheduled_last:
-				print(i, "Ack" if ack_scheduled_ack else "Nak", "scheduled id:", ack_scheduled_id)
+			#rx_d_data = yield pcie.phy_d.descrambled_lane.rx_symbol
+			#tx_d_data = yield pcie.phy_d.descrambled_lane.tx_symbol
+#
+			#rx_d_data = [(rx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
+			#tx_d_data = [(tx_d_data & (0x1FF << (i * 9))) >> i * 9 for i in range(4)]
+#
+			#retry_buffer_occupation = yield dll_status.retry_buffer_occupation
+			#receive_buffer_occupation = yield dll_status.receive_buffer_occupation
+			#tx_seq_num = yield dll_status.tx_seq_num
+			#rx_seq_num = yield dll_status.rx_seq_num
+#
+			#ack_scheduled = yield pcie.phy_d.dll.schedule_ack_nak
+			#ack_scheduled_ack = yield pcie.phy_d.dll.scheduled_ack
+			#ack_scheduled_id = yield pcie.phy_d.dll.scheduled_ack_nak_id
+#
+			#ack_received = yield pcie.phy_u.dll.received_ack_nak
+			#ack_received_ack = yield pcie.phy_u.dll.received_ack
+			#ack_received_id = yield pcie.phy_u.dll.received_ack_nak_id
+			#
+			#print(i, end="\r")
+#
+			#if Ctrl.SDP in rx_d_data:
+			#	print(i, "DLLP received")
+#
+			#if Ctrl.SDP in tx_d_data:
+			#	print(i, "DLLP sent")
+#
+			#if Ctrl.STP in rx_d_data:
+			#	print(i, "TLP received")
+#
+			#if Ctrl.STP in tx_d_data:
+			#	print(i, "TLP sent")
+#
+			#if last_retry_buffer_occupation != retry_buffer_occupation:
+			#	print(i, "retry_buffer_occupation:", retry_buffer_occupation)
+			#
+			#if last_receive_buffer_occupation != receive_buffer_occupation:
+			#	print(i, "receive_buffer_occupation:", receive_buffer_occupation)
+			#
+			#if last_tx_seq_num != tx_seq_num:
+			#	print(i, "tx_seq_num:", tx_seq_num)
+			#
+			#if last_rx_seq_num != rx_seq_num:
+			#	print(i, "rx_seq_num:", rx_seq_num)
+			#
+			#if ack_scheduled_last:
+			#	print(i, "Ack" if ack_scheduled_ack else "Nak", "scheduled id:", ack_scheduled_id)
 			
 			#if ack_received:
 			#	print(i, "Ack" if ack_received_ack else "Nak", "received id:", ack_received_id)
@@ -195,16 +225,15 @@ if __name__ == "__main__":
 			#	a *= 2
 			yield
 			last_state = state
-			last_retry_buffer_occupation = retry_buffer_occupation
-			last_receive_buffer_occupation = receive_buffer_occupation
-			last_tx_seq_num = tx_seq_num
-			last_rx_seq_num = rx_seq_num
-			ack_scheduled_last = ack_scheduled
+			#last_retry_buffer_occupation = retry_buffer_occupation
+			#last_receive_buffer_occupation = receive_buffer_occupation
+			#last_tx_seq_num = tx_seq_num
+			#last_rx_seq_num = rx_seq_num
+			#ack_scheduled_last = ack_scheduled
 
 	sim.add_sync_process(process, domain="sync")
 
-	traces = [pcie.serdes_d.lane.tx_symbol, pcie.serdes_d.lane.rx_symbol, pcie.refclkcounter, pcie.phy_d.ltssm.debug_state, pcie.phy_u.ltssm.debug_state, pcie.phy_d.dll.debug_state, pcie.phy_u.dll.debug_state, pcie.phy_d.descrambled_lane.tx_symbol, pcie.phy_u.descrambled_lane.tx_symbol,
-			 pcie.send_skp]
+	traces = [pcie.serdes_u.lane.rx_symbol, pcie.serdes_u.lane.tx_symbol, pcie.reference_lane.rx_symbol]
 
 	with sim.write_vcd("test.vcd", "test.gtkw", traces=traces):
 		sim.run()
